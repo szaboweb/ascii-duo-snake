@@ -1,47 +1,20 @@
-# 1. Előadás — Alapok, Adattípusok és Statikus Szoba (`phase-1`)
+# 2. Előadás — Egy kígyó folyamatos mozgása és irányítása (~50 perc)
 
-> **Időtartam:** ~45 perc  
-> **Git branch / tag:** `phase-1-alapok` / `phase-1`  
-> **Cél:** Felépíteni a játék tiszta adatmodelljét (`domain/`) és kirajzolni egyetlen statikus szobát 1 kígyóval (`presentation/`), még mozgás, billentyűzet és véletlenszám nélkül.
+**Git fázis:** `phase-2` (`phase-2-egy-kigyo`)  
+**Változások az 1. előadáshoz képest:** `git diff phase-1 phase-2`
 
----
+## Cél
+Az 1. előadás statikus modelljét életre keltjük: 1 kígyó folyamatosan halad, `WASD`-vel irányítható, nem tud 180°-ban önmagába fordulni, és falba ütközve véget ér a játék.
 
-## 1. Óravázlat és időbeosztás (~45 perc)
+## Tanított fogalmak (~50 perc)
+1. **Deklaratív lookup táblák (10 perc):** `OPPOSITE_DIRECTIONS` (`snake_entity.py`) és `DIRECTION_DELTAS` (`game_rules_engine.py`) hosszú `if/elif` láncok helyett.
+2. **Pure Function (10 perc):** `GameRulesEngine.compute_next_world_state()` — régi `WorldState` → új `WorldState` (0 `print`, 0 mellékhatás).
+3. **Application réteg + Getter & Setter (15 perc):** `GameLoopController` (`@property current_state`, `@property tick_rate_hz` + `@tick_rate_hz.setter` 1..60 Hz validációval).
+4. **Context Manager & Game Loop (15 perc):** `with TerminalKeyboardAdapter():` (`__enter__`/`__exit__`) és a klasszikus `Input → Update → Render → Sleep` ciklus.
 
-| Idősáv | Téma | Érintett fájl |
-| :--- | :--- | :--- |
-| **00–05 perc** | Miért választjuk szét az adatot (`domain/`) és a kirajzolást (`presentation/`)? | `src/ascii_duo_snake/` szerkezet |
-| **05–13 perc** | Zárt értékkészletek: `Enum` nyers stringek helyett (`PlayerId`, `Direction`, `GameStatus`) | `domain/game_enums.py` |
-| **13–22 perc** | Value Object, Immutability (`frozen=True`) és `+` operátor túlterhelése (`__add__`) | `domain/grid_point_value.py` |
-| **22–30 perc** | Entity vs. Value Object, `tuple` test és csak olvasható `@property` getterek (`head`, `length`) | `domain/snake_entity.py` |
-| **30–36 perc** | Single Source of Truth (`WorldState`) és Kompozíció (*HAS-A* kapcsolat) | `domain/world_state.py` |
-| **36–42 perc** | Állapotmentes ASCII megjelenítő: `format_board_frame() -> str` vs. `print()` | `presentation/ascii_board_renderer.py` |
-| **42–45 perc** | Belépési pont (`game_cli_entrypoint.py`) és első 3 headless unit teszt lefuttatása | `tests/test_snake_game_rules_and_engine.py` |
-
----
-
-## 2. Kulcsfogalmak az előadáshoz
-
-1. **Enum (`game_enums.py`):** Megakadályozza a csendes elgépeléseket (`"Up"` vs. `"up"`). A típusellenőrző és az IDE azonnal segít.
-2. **Value Object & Operator (`grid_point_value.py`):** A `GridPoint(x, y)` megváltoztathatatlan (`frozen=True`), érték szerint egyenlő (`==`), és a `__add__` operátorral olvashatóan összeadható: `GridPoint(5, 7) + GridPoint(1, -2)`.
-3. **Entity & Read-Only Getter (`snake_entity.py`):** A `SnakeEntity` rendelkezik azonosítóval (`player_id`) és `@property` getterekkel (`head`, `length`). A `body` mező szándékosan `tuple`, nem `list`, hogy kívülről ne lehessen módosítani.
-4. **SSOT & Kompozíció (`world_state.py`):** A `WorldState` az egyetlen igazságforrás — tartalmazza a szoba méretét és a `player_one_snake` objektumot.
-5. **Tesztelhető megjelenítés (`ascii_board_renderer.py`):** A `format_board_frame(world_state)` tiszta stringet ad vissza, így képernyő nélkül is ellenőrizhető unit teszttel.
-
----
-
-## 3. Futtatás és ellenőrzés órán
-
+## Élő demó parancsok
 ```powershell
-# 1. Statikus szoba kirajzolása (1 képkocka)
-python main.py
-
-# 2. Headless unit tesztek futtatása
 $env:PYTHONPATH="src"; python -m unittest discover -s tests -v
+$env:PYTHONPATH="src"; python main.py --demo
+$env:PYTHONPATH="src"; python main.py --speed 6   # P1: WASD, Kilépés: Q
 ```
-
----
-
-## 4. Következő lépés (2. előadás)
-
-A következő fázisban (`git checkout phase-2`) életre keltjük a kígyót: jön a `WASD` irányítás, a 180 fokos visszafordulás tiltása, a fal-/önütközés és a validált `@tick_rate_hz.setter`.

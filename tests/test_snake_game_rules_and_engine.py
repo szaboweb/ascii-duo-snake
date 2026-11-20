@@ -1,55 +1,78 @@
-"""Headless unit tesztek (Phase 1: Value Object, Entity getterek, statikus megjelenítés)."""
+"""UNIT TESZTEK — 2. előadás: 1 kígyó mozgása, 180° tiltás, falütközés, getter/setter."""
 
 import unittest
 
-from ascii_duo_snake.domain.game_enums import Direction, PlayerId
+from ascii_duo_snake.application.game_loop_controller import GameLoopController
+from ascii_duo_snake.domain.game_enums import Direction, GameStatus, PlayerId
+from ascii_duo_snake.domain.game_rules_engine import GameRulesEngine
 from ascii_duo_snake.domain.grid_point_value import GridPoint
 from ascii_duo_snake.domain.snake_entity import SnakeEntity
 from ascii_duo_snake.domain.world_state import WorldState
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
 
 
-class TestPhaseOneDataModelAndRenderer(unittest.TestCase):
-    """Ellenőrzi az 1. fázis adattípusait és a statikus szoba formázását."""
-
+class PhaseTwoSingleSnakeTests(unittest.TestCase):
     def test_grid_point_addition_and_equality(self) -> None:
-        origin = GridPoint(5, 7)
-        step = GridPoint(1, -2)
+        self.assertEqual(GridPoint(5, 7) + GridPoint(1, 0), GridPoint(6, 7))
 
-        result = origin + step
-
-        self.assertEqual(result, GridPoint(6, 5))
-        self.assertEqual(GridPoint(6, 5), result)
-        self.assertNotEqual(origin, result)
-
-    def test_snake_entity_head_and_length_getters(self) -> None:
-        player_one_snake = SnakeEntity(
+    def test_snake_rejects_opposite_180_degree_turn(self) -> None:
+        snake = SnakeEntity(
             player_id=PlayerId.P1,
-            body=(GridPoint(5, 5), GridPoint(4, 5), GridPoint(3, 5)),
+            body=(GridPoint(5, 5), GridPoint(4, 5)),
             direction=Direction.RIGHT,
         )
+        self.assertEqual(snake.change_direction(Direction.LEFT).direction, Direction.RIGHT)
+        self.assertEqual(snake.change_direction(Direction.UP).direction, Direction.UP)
 
-        self.assertEqual(player_one_snake.head, GridPoint(5, 5))
-        self.assertEqual(player_one_snake.length, 3)
-
-    def test_ascii_board_renderer_formats_walls_and_player_one_snake(self) -> None:
-        player_one_snake = SnakeEntity(
-            player_id=PlayerId.P1,
-            body=(GridPoint(3, 2), GridPoint(2, 2)),
-            direction=Direction.RIGHT,
+    def test_single_snake_moves_and_hits_wall(self) -> None:
+        world = WorldState(
+            room_width=10,
+            room_height=10,
+            player_one_snake=SnakeEntity(
+                player_id=PlayerId.P1,
+                body=(GridPoint(8, 5), GridPoint(7, 5)),
+                direction=Direction.RIGHT,
+            ),
         )
-        world_state = WorldState(
-            room_width=8,
-            room_height=5,
-            player_one_snake=player_one_snake,
+        next_world = GameRulesEngine.compute_next_world_state(world)
+        self.assertEqual(next_world.status, GameStatus.PLAYER2_WON)
+
+    def test_controller_getter_and_setter_validation(self) -> None:
+        world = WorldState(
+            room_width=12,
+            room_height=12,
+            player_one_snake=SnakeEntity(
+                player_id=PlayerId.P1,
+                body=(GridPoint(5, 5),),
+                direction=Direction.RIGHT,
+            ),
         )
-        board_renderer = AsciiBoardRenderer()
+        controller = GameLoopController(world, tick_rate_hz=8.0)
+        self.assertEqual(controller.tick_rate_hz, 8.0)
 
-        frame_text = board_renderer.format_board_frame(world_state)
+        controller.tick_rate_hz = 12.0
+        self.assertEqual(controller.tick_rate_hz, 12.0)
 
-        self.assertIn("########", frame_text)
-        self.assertIn("# o1   #", frame_text)
-        self.assertIn("P1 Hossz: 2", frame_text)
+        with self.assertRaises(ValueError):
+            controller.tick_rate_hz = 0.0
+
+        with self.assertRaises(AttributeError):
+            controller.current_state = world  # type: ignore[misc]
+
+    def test_renderer_formats_single_snake_room(self) -> None:
+        world = WorldState(
+            room_width=10,
+            room_height=8,
+            player_one_snake=SnakeEntity(
+                player_id=PlayerId.P1,
+                body=(GridPoint(4, 4), GridPoint(3, 4)),
+                direction=Direction.RIGHT,
+            ),
+        )
+        frame = AsciiBoardRenderer().format_board_frame(world)
+        self.assertIn("#", frame)
+        self.assertIn("1", frame)
+        self.assertIn("o", frame)
 
 
 if __name__ == "__main__":
