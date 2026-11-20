@@ -1,29 +1,21 @@
 """CLI BELÉPÉSI PONT — Adatvezérelt Automatikus Promóciós Demó (`promo/run_promo_demo.py`).
 
 Használat:
-    python promo/run_promo_demo.py                              # Alapértelmezett JSON bemutató
-    python promo/run_promo_demo.py --fast                       # Gyors CI/előnézet (0 mp várakozás)
-    python promo/run_promo_demo.py --loop                       # Kivetítő hurok (Ctrl+C)
-    python promo/run_promo_demo.py --config sajat_promo.json    # Saját szerkesztett JSON forgatókönyv
+    python -m promo.run_promo_demo                              # Alapértelmezett JSON bemutató
+    python -m promo.run_promo_demo --fast                       # Gyors CI/előnézet (0 mp várakozás)
+    python -m promo.run_promo_demo --loop                       # Kivetítő hurok (Ctrl+C)
+    python -m promo.run_promo_demo --mute                       # Néma mód (8-bites hang nélkül)
+    python -m promo.run_promo_demo --config sajat_promo.json    # Saját szerkesztett JSON forgatókönyv
 """
 
 import argparse
 from pathlib import Path
 import sys
 
-# Biztosítja, hogy a `promo/` és a `src/` közvetlen futtatáskor is megtalálható legyen
-_PROMO_DIR = Path(__file__).resolve().parent
-_PROJECT_ROOT = _PROMO_DIR.parent
-_SRC_DIR = _PROJECT_ROOT / "src"
-if str(_SRC_DIR) not in sys.path:
-    sys.path.insert(0, str(_SRC_DIR))
-if str(_PROMO_DIR) not in sys.path:
-    sys.path.insert(0, str(_PROMO_DIR))
+from promo.promo_config_loader import PromoConfigError, load_promo_storyboard_config
+from promo.promo_storyboard import run_promo_storyboard
 
-from promo_config_loader import PromoConfigError, load_promo_storyboard_config  # noqa: E402
-from promo_storyboard import run_promo_storyboard  # noqa: E402
-
-DEFAULT_CONFIG_PATH = _PROMO_DIR / "promo_storyboard_config.json"
+DEFAULT_CONFIG_PATH = Path(__file__).resolve().parent / "promo_storyboard_config.json"
 
 
 def configure_utf8_stdout() -> None:

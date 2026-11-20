@@ -25,8 +25,6 @@ from .grid_point_value import GridPoint
 from .snake_entity import SnakeEntity, is_opposite_direction
 from .world_state import WorldState
 
-DIRECTION_VECTORS = DIRECTION_DELTAS
-
 CANDIDATE_DIRECTIONS: tuple[Direction, ...] = (
     Direction.UP,
     Direction.RIGHT,
@@ -110,7 +108,7 @@ class GreedyFruitBotStrategy:
         return min(
             valid_candidates,
             key=lambda candidate: compute_manhattan_distance(
-                snake.head + DIRECTION_VECTORS[candidate],
+                snake.head + DIRECTION_DELTAS[candidate],
                 fruit_pos,
             ),
         )
@@ -130,7 +128,7 @@ class CautiousSurvivalBotStrategy:
             candidate
             for candidate in _list_non_opposite_directions(snake.direction)
             if is_cell_safe_for_bot(
-                snake.head + DIRECTION_VECTORS[candidate],
+                snake.head + DIRECTION_DELTAS[candidate],
                 world_state,
             )
         ]
@@ -141,7 +139,7 @@ class CautiousSurvivalBotStrategy:
             return min(
                 safe_candidates,
                 key=lambda candidate: compute_manhattan_distance(
-                    snake.head + DIRECTION_VECTORS[candidate],
+                    snake.head + DIRECTION_DELTAS[candidate],
                     fruit_pos,
                 ),
             )

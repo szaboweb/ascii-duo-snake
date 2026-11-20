@@ -7,7 +7,6 @@ Minden szöveg, időzítés, kezdőállapot és szkriptelt lépés a `PromoStory
 """
 
 from pathlib import Path
-import tempfile
 import time
 
 from ascii_duo_snake.application.deterministic_replay_service import (
@@ -25,15 +24,18 @@ from ascii_duo_snake.domain.session_state_machine import SessionPhase, SessionSt
 from ascii_duo_snake.domain.snake_entity import SnakeEntity
 from ascii_duo_snake.domain.world_state import WorldState
 from ascii_duo_snake.infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
+from ascii_duo_snake.infrastructure.system_random_adapter import SystemRandomAdapter
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
 from ascii_duo_snake.presentation.board_theme_catalog import select_board_theme
 from ascii_duo_snake.presentation.retro_arcade_sound_adapter import RetroArcadeSoundAdapter
-from promo_config_loader import (
+from promo.promo_config_loader import (
     PromoSceneConfig,
     PromoStoryboardConfig,
     PromoTimingsConfig,
     ScriptedInputConfig,
 )
+
+PROMO_REPLAY_SEED = 2026
 
 ANSI_RESET = "\033[0m"
 ANSI_BOLD = "\033[1m"
@@ -169,15 +171,10 @@ def _run_validation_and_closing_scene(
     print(colorize(f"  [OK] {real_manifest.name} -> {loaded_world.room_width}x{loaded_world.room_height}", ANSI_GREEN))
 
     for case in scene.validation_cases:
-        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
-            tmp.write(case.payload)
-            tmp_path = tmp.name
         try:
-            loader.load_initial_world_state(tmp_path)
+            loader.parse_manifest_text(case.payload)
         except InvalidRoomManifestException as exc:
             print(colorize(f"  [OK] {case.label} -> {exc}", ANSI_YELLOW))
-        finally:
-            Path(tmp_path).unlink(missing_ok=True)
 
     recorder = InputRecorderService()
     controller = GameLoopController(loaded_world, PromoRandomProvider([1]), recorder)
@@ -228,7 +225,7 @@ def _print_post_simulation_badges(
         )
     if scene.enable_replay_check:
         snapshot = MatchReplaySnapshot(
-            random_seed=0,
+            random_seed=PROMO_REPLAY_SEED,
             tick_rate_hz=controller.tick_rate_hz,
             total_ticks=scene.steps,
             recorded_inputs=controller.input_recorder.history,
@@ -238,7 +235,7 @@ def _print_post_simulation_badges(
             DeterministicReplayService.serialize_replay_to_json(snapshot)
         )
         replayed = DeterministicReplayService.replay_match_deterministically(
-            initial_world, restored, lambda _seed: PromoRandomProvider([0, 0])
+            initial_world, restored, lambda seed: SystemRandomAdapter(seed=seed)
         )
         print(
             colorize(
@@ -277,8 +274,13 @@ def _run_simulation_scene(
     telemetry = MatchTelemetryCollector()
     event_bus.subscribe_listener(telemetry.on_domain_event)
     event_bus.subscribe_listener(sound_adapter.on_domain_event)
+    random_provider = (
+        SystemRandomAdapter(seed=PROMO_REPLAY_SEED)
+        if scene.enable_replay_check
+        else PromoRandomProvider([0, 0])
+    )
     controller = GameLoopController(
-        world_state, PromoRandomProvider([0, 0]), InputRecorderService(), event_bus=event_bus
+        world_state, random_provider, InputRecorderService(), event_bus=event_bus
     )
     controller.tick_rate_hz = scene.tick_rate_hz
     inputs_by_tick = _index_inputs_by_tick(scene.scripted_inputs)

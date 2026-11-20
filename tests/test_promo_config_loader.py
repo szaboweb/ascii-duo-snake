@@ -7,20 +7,16 @@ hibás vagy hiányzó fájl esetén célzott `PromoConfigError` kivétel keletke
 
 import json
 from pathlib import Path
-import sys
 import tempfile
 import unittest
 
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
-_PROMO_DIR = _PROJECT_ROOT / "promo"
-if str(_PROMO_DIR) not in sys.path:
-    sys.path.insert(0, str(_PROMO_DIR))
-
-from ascii_duo_snake.domain.game_enums import Direction, FruitType, PlayerId  # noqa: E402
-from promo_config_loader import (  # noqa: E402
+from ascii_duo_snake.domain.game_enums import Direction, FruitType, PlayerId
+from promo.promo_config_loader import (
     PromoConfigError,
     load_promo_storyboard_config,
 )
+
+_PROMO_DIR = Path(__file__).resolve().parents[1] / "promo"
 
 
 class TestPromoConfigLoader(unittest.TestCase):

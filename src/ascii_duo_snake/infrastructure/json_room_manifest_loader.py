@@ -27,21 +27,32 @@ class JsonRoomManifestLoader:
     """A `RoomManifestLoader` szerződés fájlrendszer-alapú megvalósítása JSON manifesthez."""
 
     def load_initial_world_state(self, manifest_path: str) -> WorldState:
-        """Beolvassa a JSON pályaleírót, ellenőrzi a szabályokat, és `WorldState`-et épít.
-
-        Validált szabályok (invariánsok):
-            - A fájl létezik és érvényes JSON objektum.
-            - A szoba legalább 10x10-es, a gyümölcs-időköz pozitív.
-            - Mindkét kígyó kezdőpontja a falakon belül van (`1..room_width-2`, `1..room_height-2`).
-            - A két játékos nem indulhat azonos mezőről.
-        """
+        """Beolvassa a JSON pályaleírót a fájlrendszerből, majd validált `WorldState`-et épít."""
         manifest_file_path = Path(manifest_path)
         if not manifest_file_path.exists():
             raise InvalidRoomManifestException(f"A fájl nem található: {manifest_path}")
 
         try:
-            manifest_data = json.loads(manifest_file_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as json_error:
+            raw_json_text = manifest_file_path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError) as io_error:
+            raise InvalidRoomManifestException(
+                f"Nem sikerült beolvasni a manifest fájlt ({manifest_path}): {io_error}"
+            ) from io_error
+
+        return self.parse_manifest_text(raw_json_text)
+
+    def parse_manifest_text(self, raw_json_text: str) -> WorldState:
+        """Feldolgozza a nyers JSON szöveget, ellenőrzi a szabályokat, és `WorldState`-et épít.
+
+        Validált szabályok (invariánsok):
+            - A bemenet érvényes JSON objektum.
+            - A szoba legalább 10x10-es, a gyümölcs-időköz pozitív.
+            - Mindkét kígyó kezdőpontja a falakon belül van (`1..room_width-2`, `1..room_height-2`).
+            - A két játékos nem indulhat azonos mezőről.
+        """
+        try:
+            manifest_data = json.loads(raw_json_text)
+        except (json.JSONDecodeError, TypeError) as json_error:
             raise InvalidRoomManifestException(f"Érvénytelen JSON: {json_error}") from json_error
 
         if not isinstance(manifest_data, dict):

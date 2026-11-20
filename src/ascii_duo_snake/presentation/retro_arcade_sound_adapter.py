@@ -15,7 +15,8 @@ Hogyan kapcsolódik össze a kettő (Observer / Pub-Sub minta)?
     automatikusan megszólaltatja a megfelelő 8-bites hangfrekvenciát!
 """
 
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
+from types import MappingProxyType
 
 from ..domain.game_enums import FruitType
 from ..domain.game_events import FruitEatenEvent, GameDomainEvent, MatchEndedEvent
@@ -23,10 +24,12 @@ from ..domain.game_events import FruitEatenEvent, GameDomainEvent, MatchEndedEve
 ToneEmitter = Callable[[int, int], None]
 
 # Deklaratív (Data-Driven) hangkatalógus: gyümölcstípus -> (frekvencia_hz, hossz_ms) sorozat
-FRUIT_SOUND_MELODIES: dict[FruitType, tuple[tuple[int, int], ...]] = {
-    FruitType.APPLE: ((880, 85),),
-    FruitType.GOLDEN_MELON: ((660, 75), (990, 75), (1320, 130)),
-}
+FRUIT_SOUND_MELODIES: Mapping[FruitType, tuple[tuple[int, int], ...]] = MappingProxyType(
+    {
+        FruitType.APPLE: ((880, 85),),
+        FruitType.GOLDEN_MELON: ((660, 75), (990, 75), (1320, 130)),
+    }
+)
 
 MATCH_ENDED_MELODY: tuple[tuple[int, int], ...] = ((330, 90), (220, 170))
 SCENE_TRANSITION_MELODY: tuple[tuple[int, int], ...] = ((523, 55), (659, 75))

@@ -45,7 +45,10 @@ Ez a repó **8 egymásra épülő, nehézségi fokozat szerint rendezett (~45 pe
 ```powershell
 $env:PYTHONPATH="src"; python -m unittest discover -s tests -v
 $env:PYTHONPATH="src"; python main.py --demo
-$env:PYTHONPATH="src"; python main.py --speed 6
-$env:PYTHONPATH="src"; python promo/run_promo_demo.py --fast
-$env:PYTHONPATH="src"; python promo/run_promo_demo.py
+$env:PYTHONPATH="src"; python main.py --demo --theme neon_arcade --p2-bot cautious
+$env:PYTHONPATH="src"; python main.py --speed 6 --theme neon_arcade --p2-bot cautious --sound
+$env:PYTHONPATH="src"; python main.py --demo --record meccs_replay.json
+$env:PYTHONPATH="src"; python main.py --replay meccs_replay.json --theme neon_arcade
+$env:PYTHONPATH="src"; python -m promo.run_promo_demo --fast
+$env:PYTHONPATH="src"; python -m promo.run_promo_demo
 ```

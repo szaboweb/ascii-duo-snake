@@ -26,13 +26,13 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from ..domain.domain_contracts import RandomNumberProvider
 from ..domain.game_enums import Direction, GameStatus, PlayerId
-from ..domain.game_rules_engine import GameRulesEngine
 from ..domain.world_state import WorldState
-from .input_recorder_service import InputRecord
+from .game_loop_controller import GameLoopController
+from .input_recorder_service import InputRecord, InputRecorderService
 
 
 @dataclass(frozen=True)
@@ -94,7 +94,7 @@ class DeterministicReplayService:
             A rekonstruált `MatchReplaySnapshot` objektum.
 
         Raises:
-            ValueError: Ha a JSON szintaktikailag hibás vagy hiányos sémájú.
+            ValueError: Ha a JSON szintaktikailag hibás, hiányos sémájú vagy érvénytelen értékű.
         """
         try:
             data = json.loads(raw_json)
@@ -104,6 +104,17 @@ class DeterministicReplayService:
             raw_inputs = data["recorded_inputs"]
             if not isinstance(raw_inputs, list):
                 raise ValueError("A 'recorded_inputs' mezőnek listának kell lennie.")
+
+            tick_rate_hz = float(data["tick_rate_hz"])
+            total_ticks = int(data["total_ticks"])
+            if not (1.0 <= tick_rate_hz <= 60.0):
+                raise ValueError(
+                    f"Érvénytelen tick_rate_hz ({tick_rate_hz}): 1.0 és 60.0 között kell lennie."
+                )
+            if total_ticks < 0:
+                raise ValueError(
+                    f"Érvénytelen total_ticks ({total_ticks}): nem lehet negatív."
+                )
 
             recorded_inputs = tuple(
                 InputRecord(
@@ -117,8 +128,8 @@ class DeterministicReplayService:
             )
             return MatchReplaySnapshot(
                 random_seed=int(data["random_seed"]),
-                tick_rate_hz=float(data["tick_rate_hz"]),
-                total_ticks=int(data["total_ticks"]),
+                tick_rate_hz=tick_rate_hz,
+                total_ticks=total_ticks,
                 recorded_inputs=recorded_inputs,
                 expected_final_status=GameStatus(str(data["expected_final_status"])),
             )
@@ -140,43 +151,40 @@ class DeterministicReplayService:
 
         Returns:
             A visszajátszás végén előálló végső `WorldState`.
+
+        Raises:
+            ValueError: Ha a pillanatkép tick-paraméterei érvénytelenek vagy a végső állapot eltér.
         """
-        random_provider = random_provider_factory(snapshot.random_seed)
-        delta_seconds = 1.0 / snapshot.tick_rate_hz
+        if snapshot.total_ticks < 0:
+            raise ValueError(
+                f"Érvénytelen total_ticks ({snapshot.total_ticks}): nem lehet negatív."
+            )
+        if not (1.0 <= snapshot.tick_rate_hz <= 60.0):
+            raise ValueError(
+                f"Érvénytelen tick_rate_hz ({snapshot.tick_rate_hz}): 1.0 és 60.0 között kell lennie."
+            )
+
+        controller = GameLoopController(
+            initial_world_state=initial_world_state,
+            random_provider=random_provider_factory(snapshot.random_seed),
+            input_recorder=InputRecorderService(),
+            tick_rate_hz=snapshot.tick_rate_hz,
+        )
 
         inputs_by_tick: dict[int, list[InputRecord]] = {}
         for record in snapshot.recorded_inputs:
             inputs_by_tick.setdefault(record.tick, []).append(record)
 
-        current_state = initial_world_state
         for _ in range(snapshot.total_ticks):
-            tick_records = inputs_by_tick.get(current_state.tick, [])
+            tick_records = inputs_by_tick.get(controller.current_state.tick, [])
             for record in tick_records:
-                current_state = DeterministicReplayService._apply_input_record(
-                    current_state,
-                    record,
-                )
-            current_state = GameRulesEngine.compute_next_world_state(
-                current_state,
-                delta_seconds,
-                random_provider,
+                controller.steer_player_snake(record.player_id, record.target_direction)
+            controller.advance_simulation_tick(1.0 / controller.tick_rate_hz)
+
+        if controller.current_state.status != snapshot.expected_final_status:
+            raise ValueError(
+                f"Determinisztikus replay eltérés: elvárt állapot={snapshot.expected_final_status.value}, "
+                f"kapott={controller.current_state.status.value}"
             )
 
-        return current_state
-
-    @staticmethod
-    def _apply_input_record(
-        world_state: WorldState,
-        record: InputRecord,
-    ) -> WorldState:
-        """Alkalmaz egyetlen rögzített irányváltást az adott világállapotra."""
-        if record.player_id == PlayerId.P1:
-            updated_snake = world_state.player_one_snake.change_direction(
-                record.target_direction
-            )
-            return replace(world_state, player_one_snake=updated_snake)
-
-        updated_snake = world_state.player_two_snake.change_direction(
-            record.target_direction
-        )
-        return replace(world_state, player_two_snake=updated_snake)
+        return controller.current_state

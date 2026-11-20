@@ -11,9 +11,14 @@ Mit ellenőriz ez a tesztmodul?
        és az 500-lépéses Property-Based Invariáns Fuzz-Teszt.
 """
 
+import contextlib
 from dataclasses import replace
+import io
+from pathlib import Path
+import tempfile
 import unittest
 
+from ascii_duo_snake import game_cli_entrypoint
 from ascii_duo_snake.application.deterministic_replay_service import (
     DeterministicReplayService,
     MatchReplaySnapshot,
@@ -26,6 +31,7 @@ from ascii_duo_snake.domain.bot_steering_strategy import (
     GreedyFruitBotStrategy,
     select_bot_strategy,
 )
+from ascii_duo_snake.domain.domain_exceptions import InvalidRoomManifestException
 from ascii_duo_snake.domain.fruit_catalog import FRUIT_CATALOG
 from ascii_duo_snake.domain.game_enums import Direction, FruitType, GameStatus, PlayerId
 from ascii_duo_snake.domain.game_rules_engine import GameRulesEngine
@@ -37,6 +43,7 @@ from ascii_duo_snake.domain.session_state_machine import (
 )
 from ascii_duo_snake.domain.snake_entity import SnakeEntity
 from ascii_duo_snake.domain.world_state import WorldState
+from ascii_duo_snake.infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
 from ascii_duo_snake.infrastructure.system_random_adapter import SystemRandomAdapter
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
 from ascii_duo_snake.presentation.board_theme_catalog import select_board_theme
@@ -203,7 +210,6 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
     def test_phase_8_five_hundred_ticks_domain_invariants_never_violated(self) -> None:
         """8. Fázis: 500 lépéses Property-Based Invariáns Fuzz-Teszt két óvatos bottal."""
         bot = CautiousSurvivalBotStrategy()
-        rng = SystemRandomAdapter(seed=2026)
         total_verified_ticks = 0
 
         for match_seed in range(10):
@@ -255,7 +261,86 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
                 state = next_state
 
         self.assertGreaterEqual(total_verified_ticks, 150)
-        self.assertIsNotNone(rng)
+
+    def test_phase_8_replay_rejects_status_mismatch_and_invalid_tick_rate(self) -> None:
+        """8. Fázis regresszió: replay ellenőrzi az elvárt végállapotot és érvényes tick rátát."""
+        initial_world = WorldState(
+            room_width=12,
+            room_height=8,
+            player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(3, 4),), Direction.RIGHT),
+            player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(8, 4),), Direction.LEFT),
+            fruit_position=None,
+        )
+        mismatched_snapshot = MatchReplaySnapshot(
+            random_seed=42,
+            tick_rate_hz=6.0,
+            total_ticks=1,
+            recorded_inputs=(),
+            expected_final_status=GameStatus.PLAYER1_WON,
+        )
+        with self.assertRaises(ValueError):
+            DeterministicReplayService.replay_match_deterministically(
+                initial_world, mismatched_snapshot, lambda seed: SystemRandomAdapter(seed=seed)
+            )
+
+        invalid_rate_snapshot = MatchReplaySnapshot(
+            random_seed=42,
+            tick_rate_hz=0.0,
+            total_ticks=1,
+            recorded_inputs=(),
+            expected_final_status=GameStatus.RUNNING,
+        )
+        with self.assertRaises(ValueError):
+            DeterministicReplayService.replay_match_deterministically(
+                initial_world, invalid_rate_snapshot, lambda seed: SystemRandomAdapter(seed=seed)
+            )
+
+    def test_phase_4_manifest_loader_parses_json_in_memory_without_disk_io(self) -> None:
+        """4. Fázis regresszió: a manifest betöltő fájlművelet nélkül, memóriában is validál."""
+        loader = JsonRoomManifestLoader()
+        valid_payload = (
+            '{"width": 16, "height": 12, "p1Start": {"x": 3, "y": 5}, "p2Start": {"x": 12, "y": 5}}'
+        )
+        world = loader.parse_manifest_text(valid_payload)
+        self.assertEqual(world.room_width, 16)
+        self.assertEqual(world.player_one_snake.head, GridPoint(3, 5))
+
+        wall_spawn_payload = (
+            '{"width": 16, "height": 12, "p1Start": {"x": 0, "y": 5}, "p2Start": {"x": 12, "y": 5}}'
+        )
+        with self.assertRaises(InvalidRoomManifestException):
+            loader.parse_manifest_text(wall_spawn_payload)
+
+    def test_composition_root_cli_supports_theme_bot_record_and_replay(self) -> None:
+        """Composition Root regresszió: CLI támogatja a --theme, --p2-bot, --record és --replay opciókat."""
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+            replay_path = Path(tmp.name)
+
+        try:
+            demo_buffer = io.StringIO()
+            with contextlib.redirect_stdout(demo_buffer):
+                game_cli_entrypoint.main(
+                    [
+                        "--demo",
+                        "--theme",
+                        "neon_arcade",
+                        "--p2-bot",
+                        "cautious",
+                        "--record",
+                        str(replay_path),
+                    ]
+                )
+            demo_output = demo_buffer.getvalue()
+            self.assertIn("█", demo_output)
+            self.assertTrue(replay_path.exists())
+
+            replay_buffer = io.StringIO()
+            with contextlib.redirect_stdout(replay_buffer):
+                game_cli_entrypoint.main(["--replay", str(replay_path)])
+            replay_output = replay_buffer.getvalue()
+            self.assertIn("[REPLAY OK]", replay_output)
+        finally:
+            replay_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
