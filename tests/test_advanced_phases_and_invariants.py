@@ -40,6 +40,7 @@ from ascii_duo_snake.domain.world_state import WorldState
 from ascii_duo_snake.infrastructure.system_random_adapter import SystemRandomAdapter
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
 from ascii_duo_snake.presentation.board_theme_catalog import select_board_theme
+from ascii_duo_snake.presentation.retro_arcade_sound_adapter import RetroArcadeSoundAdapter
 
 
 class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
@@ -136,6 +137,33 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
         controller.advance_simulation_tick(0.2)
         self.assertEqual(telemetry.fruits_by_player[PlayerId.P1], 1)
         self.assertIn("P1_DINNYEVADASZ", telemetry.unlocked_badges)
+
+    def test_phase_7_retro_arcade_sound_adapter_plays_melodies_via_event_bus(self) -> None:
+        """7. Fázis: A `RetroArcadeSoundAdapter` a `GameEventBus`-ra feliratkozva játssza le a dallamokat."""
+        recorded_tones: list[tuple[int, int]] = []
+        sound_adapter = RetroArcadeSoundAdapter(
+            enabled=True,
+            tone_emitter=lambda freq, ms: recorded_tones.append((freq, ms)),
+        )
+        world = WorldState(
+            room_width=10,
+            room_height=6,
+            player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(3, 3),), Direction.RIGHT),
+            player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(7, 2),), Direction.LEFT),
+            fruit_position=GridPoint(4, 3),
+            fruit_type=FruitType.GOLDEN_MELON,
+        )
+        event_bus = GameEventBus()
+        event_bus.subscribe_listener(sound_adapter.on_domain_event)
+        controller = GameLoopController(
+            world,
+            SystemRandomAdapter(seed=7),
+            InputRecorderService(),
+            tick_rate_hz=5.0,
+            event_bus=event_bus,
+        )
+        controller.advance_simulation_tick(0.2)
+        self.assertEqual(recorded_tones, [(660, 75), (990, 75), (1320, 130)])
 
     def test_phase_8_deterministic_replay_reproduces_identical_world_state(self) -> None:
         """8. Fázis: A JSON-ba mentett replay 100%-ban reprodukálja az eredeti végállapotot."""

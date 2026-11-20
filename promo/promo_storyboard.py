@@ -27,6 +27,7 @@ from ascii_duo_snake.domain.world_state import WorldState
 from ascii_duo_snake.infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
 from ascii_duo_snake.presentation.board_theme_catalog import select_board_theme
+from ascii_duo_snake.presentation.retro_arcade_sound_adapter import RetroArcadeSoundAdapter
 from promo_config_loader import (
     PromoSceneConfig,
     PromoStoryboardConfig,
@@ -156,9 +157,11 @@ def _run_validation_and_closing_scene(
     scene: PromoSceneConfig,
     timings: PromoTimingsConfig,
     clear_screen: bool,
+    sound_adapter: RetroArcadeSoundAdapter,
 ) -> None:
     """Lefuttatja a manifest-validációs eseteket, a bemenet-naplózót és a zárókártyát."""
     clear_terminal_if_enabled(clear_screen)
+    sound_adapter.play_scene_fanfare()
     print_scene_banner(scene, timings.typewriter_char_delay_seconds)
     loader = JsonRoomManifestLoader()
     real_manifest = Path(__file__).resolve().parents[1] / "assets" / "room_manifest.json"
@@ -249,12 +252,14 @@ def _run_simulation_scene(
     scene: PromoSceneConfig,
     timings: PromoTimingsConfig,
     clear_screen: bool,
+    sound_adapter: RetroArcadeSoundAdapter,
 ) -> None:
     """Statikus vagy többlépéses élő szimulációs jelenetet futtat konfiguráció alapján."""
     renderer = AsciiBoardRenderer(theme=select_board_theme(scene.theme_id))
     world_state = build_initial_world_state(scene)
     if scene.steps == 0:
         clear_terminal_if_enabled(clear_screen)
+        sound_adapter.play_scene_fanfare()
         print_scene_banner(scene, timings.typewriter_char_delay_seconds)
         if scene.theme_id != "classic_ascii":
             fsm = SessionStateMachine()
@@ -271,12 +276,14 @@ def _run_simulation_scene(
     event_bus = GameEventBus()
     telemetry = MatchTelemetryCollector()
     event_bus.subscribe_listener(telemetry.on_domain_event)
+    event_bus.subscribe_listener(sound_adapter.on_domain_event)
     controller = GameLoopController(
         world_state, PromoRandomProvider([0, 0]), InputRecorderService(), event_bus=event_bus
     )
     controller.tick_rate_hz = scene.tick_rate_hz
     inputs_by_tick = _index_inputs_by_tick(scene.scripted_inputs)
     has_p1_script = any(cmd.player_id == PlayerId.P1 for cmd in scene.scripted_inputs)
+    sound_adapter.play_scene_fanfare()
 
     for step_index in range(scene.steps):
         active_key: str | None = None
@@ -297,6 +304,7 @@ def _run_simulation_scene(
             p1 = controller.current_state.player_one_snake
             print(colorize(f"  Tick #{step_index}: P1 hossz={p1.length}, pending_growth={p1.pending_growth}", ANSI_YELLOW))
         print(renderer.format_board_frame(controller.current_state))
+        sound_adapter.play_step_tick()
         controller.advance_simulation_tick(1.0 / controller.tick_rate_hz)
         pause_seconds(timings.frame_delay_seconds)
 
@@ -311,19 +319,21 @@ def run_promo_storyboard(
     storyboard: PromoStoryboardConfig,
     fast_mode: bool = False,
     loop_forever: bool = False,
+    enable_sound: bool = True,
 ) -> None:
     """Végigfuttatja a konfigurációban szereplő összes promóciós jelenetet."""
     timings = resolve_effective_timings(storyboard.timings, fast_mode=fast_mode)
     clear_screen = not fast_mode
+    sound_adapter = RetroArcadeSoundAdapter(enabled=enable_sound and not fast_mode)
     cycle_number = 0
     try:
         while True:
             cycle_number += 1
             for scene in storyboard.scenes:
                 if scene.validation_cases or scene.closing_layers:
-                    _run_validation_and_closing_scene(scene, timings, clear_screen)
+                    _run_validation_and_closing_scene(scene, timings, clear_screen, sound_adapter)
                 else:
-                    _run_simulation_scene(scene, timings, clear_screen)
+                    _run_simulation_scene(scene, timings, clear_screen, sound_adapter)
             if not loop_forever:
                 break
             print(colorize(f"\n--- #{cycle_number} ---", ANSI_CYAN))

@@ -54,6 +54,11 @@ def parse_cli_arguments(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Folyamatos konferencia / kivetítő hurok (kilépés: Ctrl+C)",
     )
+    parser.add_argument(
+        "--mute",
+        action="store_true",
+        help="Néma mód (kikapcsolja a 8-bites retro játéktermi hanghatásokat)",
+    )
     return parser.parse_args(argv)
 
 
@@ -71,6 +76,7 @@ def main(argv: list[str] | None = None) -> int:
         storyboard=storyboard,
         fast_mode=args.fast,
         loop_forever=args.loop,
+        enable_sound=not args.mute,
     )
     return 0
 
