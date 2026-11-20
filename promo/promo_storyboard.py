@@ -1,26 +1,30 @@
-"""PROMO STORYBOARD — 0 külső függőséges, élő játékmotort futtató bemutató jelenetek.
+"""PROMO STORYBOARD — 100% adatvezérelt (Data-Driven), élő játékmotort futtató bemutató.
 
 Ez a modul szigorúan elkülönül a `src/ascii_duo_snake/` rétegektől: kizárólag
-fogyasztója a valódi `GameRulesEngine`, `AsciiBoardRenderer`, `JsonRoomManifestLoader`,
-`InputRecorderService` és `GameLoopController` osztályoknak.
+fogyasztója a valódi domain, application, infrastructure és presentation osztályoknak.
+Minden szöveg, időzítés, kezdőállapot és szkriptelt lépés a `PromoStoryboardConfig`
+(JSON) objektumból érkezik — nulla beégetett promóciós szöveg vagy tick-szkript.
 """
 
-from dataclasses import dataclass
 from pathlib import Path
 import tempfile
 import time
-from typing import Callable
 
 from ascii_duo_snake.application.game_loop_controller import GameLoopController
 from ascii_duo_snake.application.input_recorder_service import InputRecorderService
 from ascii_duo_snake.domain.domain_exceptions import InvalidRoomManifestException
-from ascii_duo_snake.domain.game_enums import Direction, FruitType, PlayerId
-from ascii_duo_snake.domain.game_rules_engine import GameRulesEngine
+from ascii_duo_snake.domain.game_enums import Direction, FruitType, GameStatus, PlayerId
 from ascii_duo_snake.domain.grid_point_value import GridPoint
 from ascii_duo_snake.domain.snake_entity import SnakeEntity
 from ascii_duo_snake.domain.world_state import WorldState
 from ascii_duo_snake.infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
+from promo_config_loader import (
+    PromoSceneConfig,
+    PromoStoryboardConfig,
+    PromoTimingsConfig,
+    ScriptedInputConfig,
+)
 
 ANSI_RESET = "\033[0m"
 ANSI_BOLD = "\033[1m"
@@ -30,24 +34,12 @@ ANSI_GREEN = "\033[32m"
 ANSI_YELLOW = "\033[33m"
 ANSI_RED = "\033[31m"
 
-
-@dataclass(frozen=True)
-class PromoPlaybackConfig:
-    """A promóciós bemutató időzítési és megjelenítési beállításai."""
-
-    frame_delay_seconds: float = 0.25
-    typewriter_delay_seconds: float = 0.015
-    clear_screen: bool = True
-
-
-@dataclass(frozen=True)
-class PromoScene:
-    """Egyetlen koreografált előadási jelenet leírása."""
-
-    phase_number: int
-    title: str
-    subtitle: str
-    runner: Callable[[PromoPlaybackConfig], None]
+DIRECTION_TO_WASD = {
+    Direction.UP: "W",
+    Direction.LEFT: "A",
+    Direction.DOWN: "S",
+    Direction.RIGHT: "D",
+}
 
 
 class PromoRandomProvider:
@@ -75,187 +67,188 @@ def pause_seconds(seconds: float) -> None:
         time.sleep(seconds)
 
 
-def clear_terminal_if_enabled(config: PromoPlaybackConfig) -> None:
-    """Törli a terminált, ha a konfiguráció engedélyezi."""
-    if config.clear_screen:
+def resolve_effective_timings(timings: PromoTimingsConfig, fast_mode: bool) -> PromoTimingsConfig:
+    """`--fast` módban lenullázza az összes időzítést."""
+    if fast_mode:
+        return PromoTimingsConfig(0.0, 0.0, 0.0)
+    return timings
+
+
+def clear_terminal_if_enabled(clear_screen: bool) -> None:
+    """Törli a terminált, ha a megjelenítés engedélyezi."""
+    if clear_screen:
         print("\033[H\033[J", end="")
 
 
-def print_typewriter_banner(title: str, subtitle: str, config: PromoPlaybackConfig) -> None:
-    """Kiírja a jelenet címét opcionális írógép-effekttel."""
-    border = colorize("=" * 66, ANSI_CYAN)
+def print_scene_banner(scene: PromoSceneConfig, typewriter_delay: float) -> None:
+    """Kiírja a jelenet fejlécét a konfiguráció alapján, opcionális írógép-effekttel."""
+    header = f"{scene.phase_badge}: {scene.title}"
+    border = colorize("=" * 68, ANSI_CYAN)
     print(f"\n{border}")
-    if config.typewriter_delay_seconds > 0.0:
-        for char in title:
+    if typewriter_delay > 0.0:
+        for char in header:
             print(colorize(char, ANSI_BOLD + ANSI_CYAN), end="", flush=True)
-            time.sleep(config.typewriter_delay_seconds)
+            time.sleep(typewriter_delay)
         print()
     else:
-        print(colorize(title, ANSI_BOLD + ANSI_CYAN))
-    print(colorize(subtitle, ANSI_DIM))
+        print(colorize(header, ANSI_BOLD + ANSI_CYAN))
+    print(colorize(scene.subtitle, ANSI_DIM))
     print(border)
 
 
+def print_highlights(highlights: tuple[str, ...]) -> None:
+    """Kiírja a jelenethez tartozó oktatási kiemeléseket."""
+    for line in highlights:
+        print(colorize(f"  * {line}", ANSI_YELLOW))
+
+
 def format_wasd_badge(active_key: str | None) -> str:
-    """Kiemeli az épp lenyomott WASD gombot a 2. jelenethez."""
-    parts: list[str] = []
-    for key in ("W", "A", "S", "D"):
-        if key == active_key:
-            parts.append(colorize(f"[{key}]", ANSI_BOLD + ANSI_GREEN))
-        else:
-            parts.append(colorize(f" {key} ", ANSI_DIM))
-    return "Billentyűzet: " + " ".join(parts)
-
-
-def run_scene_one_foundations(config: PromoPlaybackConfig) -> None:
-    """1. jelenet — 1. fázis (Alapok): statikus szoba, GridPoint, WorldState, Enum."""
-    clear_terminal_if_enabled(config)
-    print_typewriter_banner(
-        "1. FÁZIS — ALAPOK: Adattípusok és Statikus Szoba",
-        "Fogalmak: GridPoint (Value Object), Enum (Direction, PlayerId), WorldState (SSOT)",
-        config,
-    )
-    renderer = AsciiBoardRenderer()
-    static_world = WorldState(
-        room_width=18,
-        room_height=8,
-        player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(4, 4),), Direction.RIGHT),
-        player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(13, 4),), Direction.LEFT),
-    )
-    print(renderer.format_board_frame(static_world))
-    print(colorize("  * GridPoint(4, 4) + GridPoint(1, 0) == GridPoint(5, 4)  [Operator +]", ANSI_YELLOW))
-    print(colorize("  * WorldState(frozen=True) -> 100% megváltoztathatatlan SSOT", ANSI_GREEN))
-    pause_seconds(config.frame_delay_seconds * 3)
-
-
-def run_scene_two_single_snake_control(config: PromoPlaybackConfig) -> None:
-    """2. jelenet — 2. fázis: WASD irányítás, tick_rate_hz setter és falütközés."""
-    renderer = AsciiBoardRenderer()
-    initial_world = WorldState(
-        room_width=14,
-        room_height=8,
-        player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(9, 4),), Direction.RIGHT),
-        player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(2, 2),), Direction.DOWN),
-        fruit_spawn_interval_seconds=99.0,
-    )
-    controller = GameLoopController(
-        initial_world_state=initial_world,
-        random_provider=PromoRandomProvider([0]),
-        input_recorder=InputRecorderService(),
-        tick_rate_hz=6.0,
-    )
-    controller.tick_rate_hz = 12.0
-    setter_badge = colorize("[SETTER OK] tick_rate_hz: 6.0 -> 12.0 Hz (1..60 Hz)", ANSI_GREEN)
-    scripted_steps: list[tuple[str | None, Direction | None]] = [
-        ("W", Direction.UP),
-        ("D", Direction.RIGHT),
-        ("S", Direction.DOWN),
-        ("D", Direction.RIGHT),
-        ("D", None),
-        ("D", None),
+    """Kiemeli az adott tick-ben aktív WASD billentyűt."""
+    parts = [
+        colorize(f"[{key}]", ANSI_BOLD + ANSI_GREEN) if key == active_key else colorize(f" {key} ", ANSI_DIM)
+        for key in ("W", "A", "S", "D")
     ]
-    for active_key, direction in scripted_steps:
-        if direction is not None:
-            controller.steer_player_snake(PlayerId.P1, direction)
-        controller.advance_simulation_tick(1.0 / controller.tick_rate_hz)
-        clear_terminal_if_enabled(config)
-        print_typewriter_banner(
-            "2. FÁZIS — 1 KÍGYÓ IRÁNYÍTÁSA: WASD, Setter és Falütközés",
-            "Fogalmak: Pure Function, GameLoopController, @property + @setter",
-            config,
-        )
-        print(f"  {format_wasd_badge(active_key)}   |   {setter_badge}")
-        print(renderer.format_board_frame(controller.current_state))
-        pause_seconds(config.frame_delay_seconds)
-    print(colorize(f"  -> Falütközés észlelve: {controller.current_state.status.value}", ANSI_RED))
-    pause_seconds(config.frame_delay_seconds * 2)
+    return "WASD: " + " ".join(parts)
 
 
-def run_scene_three_duo_fruit_and_head_swap(config: PromoPlaybackConfig) -> None:
-    """3. jelenet — 3. fázis: 2 kígyó, GOLDEN_MELON (+3 növekedés) és head-swap (DRAW)."""
-    renderer = AsciiBoardRenderer()
-    rng = PromoRandomProvider([0, 0])
-    world = WorldState(
-        room_width=16,
-        room_height=8,
-        player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(3, 4),), Direction.RIGHT),
-        player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(12, 2),), Direction.LEFT),
-        fruit_position=GridPoint(4, 4),
-        fruit_type=FruitType.GOLDEN_MELON,
+def build_initial_world_state(scene: PromoSceneConfig) -> WorldState:
+    """A JSON jelenet-konfigurációból felépíti a valódi `WorldState` kezdőállapotot."""
+    snakes_by_id = {
+        item.player_id: SnakeEntity(item.player_id, (GridPoint(item.x, item.y),), item.direction)
+        for item in scene.initial_snakes
+    }
+    fruit = scene.optional_fruit
+    return WorldState(
+        room_width=scene.room_width,
+        room_height=scene.room_height,
+        player_one_snake=snakes_by_id[PlayerId.P1],
+        player_two_snake=snakes_by_id[PlayerId.P2],
+        fruit_position=GridPoint(fruit.x, fruit.y) if fruit is not None else None,
+        fruit_type=fruit.fruit_type if fruit is not None else FruitType.APPLE,
         fruit_spawn_interval_seconds=99.0,
     )
-    for step_index in range(4):
-        clear_terminal_if_enabled(config)
-        print_typewriter_banner(
-            "3. FÁZIS — 2 KÍGYÓ, GYÜMÖLCS & NÖVEKEDÉS (GOLDEN_MELON +3)",
-            "Fogalmak: FRUIT_CATALOG, RandomNumberProvider DI, pending_growth, head-swap",
-            config,
-        )
-        p1 = world.player_one_snake
-        print(colorize(f"  Lépés #{step_index}: P1 hossz={p1.length}, pending_growth={p1.pending_growth}", ANSI_YELLOW))
-        print(renderer.format_board_frame(world))
-        pause_seconds(config.frame_delay_seconds)
-        world = GameRulesEngine.compute_next_world_state(world, 0.2, rng)
-
-    head_swap_world = WorldState(
-        room_width=14,
-        room_height=7,
-        player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(6, 3),), Direction.RIGHT),
-        player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(7, 3),), Direction.LEFT),
-    )
-    swap_result = GameRulesEngine.compute_next_world_state(head_swap_world, 0.2, rng)
-    print(colorize(f"  [HEAD-SWAP VÉDELEM] P1(6,3)->(7,3) vs P2(7,3)->(6,3) => {swap_result.status.value.upper()}", ANSI_GREEN))
-    pause_seconds(config.frame_delay_seconds * 2)
 
 
-def run_scene_four_validation_and_architecture(config: PromoPlaybackConfig) -> None:
-    """4. jelenet — 4. fázis: Manifest validáció, InputRecorderService és 4 réteg zárókártya."""
-    clear_terminal_if_enabled(config)
-    print_typewriter_banner(
-        "4. FÁZIS — ÁLLAPOT-ELLENŐRZÉS, RECORDER & CLEAN ARCHITECTURE",
-        "Fogalmak: JsonRoomManifestLoader, InvalidRoomManifestException, InputRecorderService",
-        config,
-    )
+def _index_inputs_by_tick(inputs: tuple[ScriptedInputConfig, ...]) -> dict[int, list[ScriptedInputConfig]]:
+    """Tick-sorszám szerint csoportosítja a szkriptelt bemeneteket."""
+    grouped: dict[int, list[ScriptedInputConfig]] = {}
+    for cmd in inputs:
+        grouped.setdefault(cmd.tick, []).append(cmd)
+    return grouped
+
+
+def _run_validation_and_closing_scene(
+    scene: PromoSceneConfig,
+    timings: PromoTimingsConfig,
+    clear_screen: bool,
+) -> None:
+    """Lefuttatja a manifest-validációs eseteket, a bemenet-naplózót és a zárókártyát."""
+    clear_terminal_if_enabled(clear_screen)
+    print_scene_banner(scene, timings.typewriter_char_delay_seconds)
     loader = JsonRoomManifestLoader()
     real_manifest = Path(__file__).resolve().parents[1] / "assets" / "room_manifest.json"
     loaded_world = loader.load_initial_world_state(str(real_manifest))
-    print(colorize(f"  [OK] Valódi manifest betöltve: {loaded_world.room_width}x{loaded_world.room_height}", ANSI_GREEN))
+    print(colorize(f"  [OK] {real_manifest.name} -> {loaded_world.room_width}x{loaded_world.room_height}", ANSI_GREEN))
 
-    bad_cases = [
-        ("Falon lévő P1 spawn", '{"width": 20, "height": 15, "p1Start": {"x": 0, "y": 5}, "p2Start": {"x": 10, "y": 5}}'),
-        ("Ütköző kezdőpontok", '{"width": 20, "height": 15, "p1Start": {"x": 5, "y": 5}, "p2Start": {"x": 5, "y": 5}}'),
-    ]
-    for label, payload in bad_cases:
+    for case in scene.validation_cases:
         with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
-            tmp.write(payload)
+            tmp.write(case.payload)
             tmp_path = tmp.name
         try:
             loader.load_initial_world_state(tmp_path)
         except InvalidRoomManifestException as exc:
-            print(colorize(f"  [OK] elkapva! ({label}) -> {exc}", ANSI_YELLOW))
+            print(colorize(f"  [OK] {case.label} -> {exc}", ANSI_YELLOW))
         finally:
             Path(tmp_path).unlink(missing_ok=True)
 
     recorder = InputRecorderService()
     controller = GameLoopController(loaded_world, PromoRandomProvider([1]), recorder)
-    controller.steer_player_snake(PlayerId.P1, Direction.UP)
-    controller.advance_simulation_tick(0.2)
-    controller.steer_player_snake(PlayerId.P2, Direction.DOWN)
-    print(colorize(f"  [RECORDER] InputRecorderService.history ({len(recorder.history)} db): {recorder.history}", ANSI_CYAN))
+    controller.tick_rate_hz = scene.tick_rate_hz
+    inputs_by_tick = _index_inputs_by_tick(scene.scripted_inputs)
+    for tick in range(scene.steps + 1):
+        for cmd in inputs_by_tick.get(tick, []):
+            controller.steer_player_snake(cmd.player_id, cmd.direction)
+        if tick < scene.steps:
+            controller.advance_simulation_tick(1.0 / controller.tick_rate_hz)
+    print(colorize(f"  [RECORDER] ({len(recorder.history)} db): {recorder.history}", ANSI_CYAN))
+    print_highlights(scene.highlights)
 
-    print(colorize("\n  +--------------------------------------------------------------+", ANSI_BOLD + ANSI_CYAN))
-    print(colorize("  |  4 RÉTEGŰ CLEAN ARCHITECTURE (Nyilak mindig befelé!)         |", ANSI_BOLD + ANSI_CYAN))
-    print(colorize("  |  4. Presentation -> 2. Application -> 1. Domain (0 I/O)      |", ANSI_GREEN))
-    print(colorize("  |  3. Infrastructure (JSON, RNG) -----> 1. Domain (Protocol)   |", ANSI_GREEN))
-    print(colorize("  +--------------------------------------------------------------+", ANSI_BOLD + ANSI_CYAN))
-    pause_seconds(config.frame_delay_seconds * 3)
+    if scene.closing_layers:
+        width = max(len(line) for line in scene.closing_layers) + 4
+        border = f"  +{'-' * width}+"
+        print(colorize(f"\n{border}", ANSI_BOLD + ANSI_CYAN))
+        for idx, line in enumerate(scene.closing_layers):
+            style = ANSI_BOLD + ANSI_CYAN if idx == 0 else ANSI_GREEN
+            print(colorize(f"  |  {line.ljust(width - 2)}|", style))
+        print(colorize(border, ANSI_BOLD + ANSI_CYAN))
+    pause_seconds(timings.scene_pause_seconds)
 
 
-def build_promo_scenes() -> tuple[PromoScene, ...]:
-    """Visszaadja a 4 koreografált promóciós jelenet listáját."""
-    return (
-        PromoScene(1, "1. fázis — Alapok", "Statikus szoba, GridPoint, WorldState, Enum", run_scene_one_foundations),
-        PromoScene(2, "2. fázis — 1 kígyó irányítása", "WASD, setter és falütközés", run_scene_two_single_snake_control),
-        PromoScene(3, "3. fázis — 2 kígyó & növekedés", "GOLDEN_MELON +3 és head-swap DRAW", run_scene_three_duo_fruit_and_head_swap),
-        PromoScene(4, "4. fázis — Validáció & Architektúra", "Manifest, Exception, Recorder, 4 réteg", run_scene_four_validation_and_architecture),
-    )
+def _run_simulation_scene(
+    scene: PromoSceneConfig,
+    timings: PromoTimingsConfig,
+    clear_screen: bool,
+) -> None:
+    """Statikus vagy többlépéses élő szimulációs jelenetet futtat konfiguráció alapján."""
+    renderer = AsciiBoardRenderer()
+    world_state = build_initial_world_state(scene)
+    if scene.steps == 0:
+        clear_terminal_if_enabled(clear_screen)
+        print_scene_banner(scene, timings.typewriter_char_delay_seconds)
+        print(renderer.format_board_frame(world_state))
+        print_highlights(scene.highlights)
+        pause_seconds(timings.scene_pause_seconds)
+        return
+
+    controller = GameLoopController(world_state, PromoRandomProvider([0, 0]), InputRecorderService())
+    controller.tick_rate_hz = scene.tick_rate_hz
+    inputs_by_tick = _index_inputs_by_tick(scene.scripted_inputs)
+    has_p1_script = any(cmd.player_id == PlayerId.P1 for cmd in scene.scripted_inputs)
+
+    for step_index in range(scene.steps):
+        active_key: str | None = None
+        for cmd in inputs_by_tick.get(step_index, []):
+            controller.steer_player_snake(cmd.player_id, cmd.direction)
+            if cmd.player_id == PlayerId.P1:
+                active_key = DIRECTION_TO_WASD[cmd.direction]
+
+        clear_terminal_if_enabled(clear_screen)
+        delay = timings.typewriter_char_delay_seconds if step_index == 0 else 0.0
+        print_scene_banner(scene, delay)
+        if has_p1_script:
+            print(f"  {format_wasd_badge(active_key)}   |   tick_rate_hz={controller.tick_rate_hz:.1f} Hz")
+        if scene.optional_fruit is not None:
+            p1 = controller.current_state.player_one_snake
+            print(colorize(f"  Tick #{step_index}: P1 hossz={p1.length}, pending_growth={p1.pending_growth}", ANSI_YELLOW))
+        print(renderer.format_board_frame(controller.current_state))
+        controller.advance_simulation_tick(1.0 / controller.tick_rate_hz)
+        pause_seconds(timings.frame_delay_seconds)
+
+    if controller.current_state.status != GameStatus.RUNNING:
+        print(colorize(f"  -> {controller.current_state.status.value}", ANSI_RED))
+    print_highlights(scene.highlights)
+    pause_seconds(timings.scene_pause_seconds)
+
+
+def run_promo_storyboard(
+    storyboard: PromoStoryboardConfig,
+    fast_mode: bool = False,
+    loop_forever: bool = False,
+) -> None:
+    """Végigfuttatja a konfigurációban szereplő összes promóciós jelenetet."""
+    timings = resolve_effective_timings(storyboard.timings, fast_mode=fast_mode)
+    clear_screen = not fast_mode
+    cycle_number = 0
+    try:
+        while True:
+            cycle_number += 1
+            for scene in storyboard.scenes:
+                if scene.validation_cases or scene.closing_layers:
+                    _run_validation_and_closing_scene(scene, timings, clear_screen)
+                else:
+                    _run_simulation_scene(scene, timings, clear_screen)
+            if not loop_forever:
+                break
+            print(colorize(f"\n--- #{cycle_number} ---", ANSI_CYAN))
+    except KeyboardInterrupt:
+        print(colorize("\nCtrl+C", ANSI_GREEN))

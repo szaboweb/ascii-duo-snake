@@ -1,9 +1,10 @@
-"""CLI BELÉPÉSI PONT — Automatikus Promóciós Demó (`promo/run_promo_demo.py`).
+"""CLI BELÉPÉSI PONT — Adatvezérelt Automatikus Promóciós Demó (`promo/run_promo_demo.py`).
 
 Használat:
-    $env:PYTHONPATH="src"; python promo/run_promo_demo.py           # Animált bemutató
-    $env:PYTHONPATH="src"; python promo/run_promo_demo.py --fast    # Gyors CI/előnézet
-    $env:PYTHONPATH="src"; python promo/run_promo_demo.py --loop    # Kivetítő hurok (Ctrl+C)
+    python promo/run_promo_demo.py                              # Alapértelmezett JSON bemutató
+    python promo/run_promo_demo.py --fast                       # Gyors CI/előnézet (0 mp várakozás)
+    python promo/run_promo_demo.py --loop                       # Kivetítő hurok (Ctrl+C)
+    python promo/run_promo_demo.py --config sajat_promo.json    # Saját szerkesztett JSON forgatókönyv
 """
 
 import argparse
@@ -11,20 +12,18 @@ from pathlib import Path
 import sys
 
 # Biztosítja, hogy a `promo/` és a `src/` közvetlen futtatáskor is megtalálható legyen
-_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+_PROMO_DIR = Path(__file__).resolve().parent
+_PROJECT_ROOT = _PROMO_DIR.parent
 _SRC_DIR = _PROJECT_ROOT / "src"
 if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
-if str(Path(__file__).resolve().parent) not in sys.path:
-    sys.path.insert(0, str(Path(__file__).resolve().parent))
+if str(_PROMO_DIR) not in sys.path:
+    sys.path.insert(0, str(_PROMO_DIR))
 
-from promo_storyboard import (  # noqa: E402
-    ANSI_CYAN,
-    ANSI_GREEN,
-    PromoPlaybackConfig,
-    build_promo_scenes,
-    colorize,
-)
+from promo_config_loader import PromoConfigError, load_promo_storyboard_config  # noqa: E402
+from promo_storyboard import run_promo_storyboard  # noqa: E402
+
+DEFAULT_CONFIG_PATH = _PROMO_DIR / "promo_storyboard_config.json"
 
 
 def configure_utf8_stdout() -> None:
@@ -34,27 +33,16 @@ def configure_utf8_stdout() -> None:
         reconfigure(encoding="utf-8", errors="replace")
 
 
-def run_promo_showcase(config: PromoPlaybackConfig, loop_forever: bool) -> None:
-    """Végigfuttatja a 4 promóciós jelenetet egyszer vagy folyamatos hurokban."""
-    scenes = build_promo_scenes()
-    cycle_number = 0
-    try:
-        while True:
-            cycle_number += 1
-            for scene in scenes:
-                scene.runner(config)
-            if not loop_forever:
-                break
-            print(colorize(f"\n--- Promóciós kör #{cycle_number} befejezve, újraindítás... ---", ANSI_CYAN))
-    except KeyboardInterrupt:
-        print(colorize("\nPromóciós bemutató leállítva (Ctrl+C).", ANSI_GREEN))
-
-
-def main() -> None:
-    """Argumentumok feldolgozása és a 4 jelenetes promóciós demó elindítása."""
-    configure_utf8_stdout()
+def parse_cli_arguments(argv: list[str] | None = None) -> argparse.Namespace:
+    """Parancssori kapcsolók (`--config`, `--fast`, `--loop`) feldolgozása."""
     parser = argparse.ArgumentParser(
-        description="ASCII Duo Snake — 4 előadási fázis automatikus promóciós demója"
+        description="ASCII Duo Snake — Adatvezérelt (Data-Driven) 4 fázisú promóciós demó"
+    )
+    parser.add_argument(
+        "--config",
+        type=Path,
+        default=DEFAULT_CONFIG_PATH,
+        help="A promóciós storyboard JSON fájl elérési útja (alapértelmezett: promo/promo_storyboard_config.json)",
     )
     parser.add_argument(
         "--fast",
@@ -66,15 +54,26 @@ def main() -> None:
         action="store_true",
         help="Folyamatos konferencia / kivetítő hurok (kilépés: Ctrl+C)",
     )
-    args = parser.parse_args()
+    return parser.parse_args(argv)
 
-    config = PromoPlaybackConfig(
-        frame_delay_seconds=0.0 if args.fast else 0.28,
-        typewriter_delay_seconds=0.0 if args.fast else 0.012,
-        clear_screen=not args.fast,
+
+def main(argv: list[str] | None = None) -> int:
+    """Betölti a JSON forgatókönyvet és elindítja a promóciós bemutatót."""
+    configure_utf8_stdout()
+    args = parse_cli_arguments(argv)
+    try:
+        storyboard = load_promo_storyboard_config(args.config)
+    except PromoConfigError as exc:
+        print(f"[HIBA] {exc}", file=sys.stderr)
+        return 1
+
+    run_promo_storyboard(
+        storyboard=storyboard,
+        fast_mode=args.fast,
+        loop_forever=args.loop,
     )
-    run_promo_showcase(config=config, loop_forever=args.loop)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

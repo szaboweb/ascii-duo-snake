@@ -1,0 +1,129 @@
+{
+  "timings": {
+    "typewriter_char_delay_seconds": 0.012,
+    "frame_delay_seconds": 0.28,
+    "scene_pause_seconds": 0.75
+  },
+  "scenes": [
+    {
+      "id": "phase_1_foundations",
+      "phase_badge": "1. FÁZIS — ALAPOK",
+      "title": "Adattípusok és Statikus Szoba",
+      "subtitle": "Fogalmak: GridPoint (Value Object), Enum (Direction, PlayerId), WorldState (SSOT)",
+      "highlights": [
+        "GridPoint(4, 4) + GridPoint(1, 0) == GridPoint(5, 4)  [Operator +]",
+        "WorldState(frozen=True) -> 100% megváltoztathatatlan egyetlen igazságforrás (SSOT)",
+        "Enum (PlayerId, Direction) -> elgépelésbiztos, zárt értékkészlet"
+      ],
+      "room_width": 18,
+      "room_height": 8,
+      "tick_rate_hz": 6.0,
+      "steps": 0,
+      "scripted_inputs": [],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 4, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 13, "y": 4, "direction": "left" }
+      ],
+      "optional_fruit": null,
+      "validation_cases": [],
+      "closing_layers": []
+    },
+    {
+      "id": "phase_2_single_snake",
+      "phase_badge": "2. FÁZIS — 1 KÍGYÓ IRÁNYÍTÁSA",
+      "title": "WASD Irányítás, Setter és Falütközés",
+      "subtitle": "Fogalmak: Pure Function, GameLoopController, @property + @setter (1..60 Hz)",
+      "highlights": [
+        "[SETTER OK] tick_rate_hz: 6.0 -> 12.0 Hz (validált tartomány: 1..60 Hz)",
+        "GameRulesEngine.compute_next_world_state() -> mellékhatásmentes tiszta függvény",
+        "Falütközés detektálása külső I/O és képernyő nélkül, determinisztikusan"
+      ],
+      "room_width": 14,
+      "room_height": 8,
+      "tick_rate_hz": 12.0,
+      "steps": 6,
+      "scripted_inputs": [
+        { "tick": 0, "player_id": "P1", "direction": "up" },
+        { "tick": 1, "player_id": "P1", "direction": "right" },
+        { "tick": 2, "player_id": "P1", "direction": "down" },
+        { "tick": 3, "player_id": "P1", "direction": "right" }
+      ],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 9, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 2, "y": 2, "direction": "down" }
+      ],
+      "optional_fruit": null,
+      "validation_cases": [],
+      "closing_layers": []
+    },
+    {
+      "id": "phase_3_duo_fruit_and_growth",
+      "phase_badge": "3. FÁZIS — 2 KÍGYÓ & GYÜMÖLCS",
+      "title": "Kétszemélyes Játék, GOLDEN_MELON (+3) és Növekedés",
+      "subtitle": "Fogalmak: FRUIT_CATALOG, RandomNumberProvider DI, pending_growth, head-swap",
+      "highlights": [
+        "FRUIT_CATALOG (Data-Driven SSOT): GOLDEN_MELON -> +3 lépésnyi pending_growth",
+        "RandomNumberProvider Protocol DI -> élesben RNG, tesztben determinisztikus Mock",
+        "Head-swap védelem: egymással szemben helyet cserélő fejek -> biztonságos DRAW"
+      ],
+      "room_width": 16,
+      "room_height": 8,
+      "tick_rate_hz": 5.0,
+      "steps": 4,
+      "scripted_inputs": [
+        { "tick": 1, "player_id": "P2", "direction": "down" }
+      ],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 3, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 12, "y": 2, "direction": "left" }
+      ],
+      "optional_fruit": {
+        "x": 4,
+        "y": 4,
+        "fruit_type": "golden_melon"
+      },
+      "validation_cases": [],
+      "closing_layers": []
+    },
+    {
+      "id": "phase_4_validation_and_architecture",
+      "phase_badge": "4. FÁZIS — VALIDÁCIÓ & ARCHITEKTÚRA",
+      "title": "Manifest Validáció, InputRecorder és 4 Rétegű Clean Architecture",
+      "subtitle": "Fogalmak: JsonRoomManifestLoader, InvalidRoomManifestException, InputRecorderService",
+      "highlights": [
+        "Data-Driven Config: a teljes bemutató JSON-ból vezérelt, 0 hardcoded szöveg a Python kódban",
+        "InputRecorderService: tick-re pontos, csak olvasható (tuple) bemeneti napló",
+        "Dependency Rule: minden nyíl befelé mutat a tiszta Domain réteg felé"
+      ],
+      "room_width": 20,
+      "room_height": 15,
+      "tick_rate_hz": 5.0,
+      "steps": 1,
+      "scripted_inputs": [
+        { "tick": 0, "player_id": "P1", "direction": "up" },
+        { "tick": 1, "player_id": "P2", "direction": "down" }
+      ],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 4, "y": 7, "direction": "right" },
+        { "player_id": "P2", "x": 15, "y": 7, "direction": "left" }
+      ],
+      "optional_fruit": null,
+      "validation_cases": [
+        {
+          "label": "Falon lévő P1 spawn",
+          "payload": "{\"width\": 20, \"height\": 15, \"p1Start\": {\"x\": 0, \"y\": 5}, \"p2Start\": {\"x\": 10, \"y\": 5}}"
+        },
+        {
+          "label": "Ütköző kezdőpontok",
+          "payload": "{\"width\": 20, \"height\": 15, \"p1Start\": {\"x\": 5, \"y\": 5}, \"p2Start\": {\"x\": 5, \"y\": 5}}"
+        }
+      ],
+      "closing_layers": [
+        "4 RÉTEGŰ CLEAN ARCHITECTURE (Nyilak mindig befelé!)",
+        "4. Presentation -> 2. Application -> 1. Domain (0 I/O)",
+        "3. Infrastructure (JSON, RNG) -----> 1. Domain (Protocol)",
+        "Data-Driven Promo: promo/promo_storyboard_config.json"
+      ]
+    }
+  ]
+}

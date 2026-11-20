@@ -155,7 +155,10 @@ git checkout main
 
 ## 8. Automatikus Promóciós Demó (`promo/`)
 
-A `promo/` mappa egy **0 külső függőséges, élő játékmotort futtató terminál-bemutatót** tartalmaz (teljesen elkülönítve a `src/` rétegektől), amely 4 koreografált jelenetben végigvezeti a 4 előadás kulcsfogalmait:
+A `promo/` mappa egy **0 külső függőséges, adatvezérelt (Data-Driven) és élő játékmotort futtató terminál-bemutatót** tartalmaz (teljesen elkülönítve a `src/` rétegektől), amely 4 koreografált jelenetben végigvezeti a 4 előadás kulcsfogalmait:
+
+> **Data-Driven Config (Adatvezérelt programozás) a gyakorlatban:**
+> A jelenetek címei, alcímei, kiemelései, időzítései, kezdő kígyópozíciói, gyümölcsei és szkriptelt lépései **nem a Python kódban vannak beégetve**, hanem a [`promo/promo_storyboard_config.json`](promo/promo_storyboard_config.json) fájlban élnek (amelyet a `promo/promo_config_loader.py` validál és alakít valódi Domain Enumokká). Hallgatóként nyugodtan átírhatsz bármilyen címet, sebességet vagy mozgás-sorozatot a JSON-ban **Python kód módosítása nélkül**, majd elindíthatod `--config` kapcsolóval!
 
 ```powershell
 # Normál, animált bemutató (előadáshoz / kivetítőre):
@@ -166,4 +169,7 @@ $env:PYTHONPATH="src"; python promo/run_promo_demo.py --fast
 
 # Folyamatos konferencia- / kivetítő-hurok (kilépés: Ctrl+C):
 $env:PYTHONPATH="src"; python promo/run_promo_demo.py --loop
+
+# Saját, átírt JSON forgatókönyv futtatása kódmódosítás nélkül:
+$env:PYTHONPATH="src"; python promo/run_promo_demo.py --config promo/promo_storyboard_config.json --fast
 ```
