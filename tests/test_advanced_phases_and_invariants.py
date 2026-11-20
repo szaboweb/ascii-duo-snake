@@ -11,12 +11,14 @@ Mit ellenőriz ez a tesztmodul?
        és az 500-lépéses Property-Based Invariáns Fuzz-Teszt.
 """
 
+from collections.abc import Iterator
 import contextlib
 from dataclasses import replace
 import io
 from pathlib import Path
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from ascii_duo_snake import game_cli_entrypoint
 from ascii_duo_snake.application.deterministic_replay_service import (
@@ -342,6 +344,70 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
                 game_cli_entrypoint.main(["--replay", str(replay_path)])
             replay_output = replay_buffer.getvalue()
             self.assertIn("[REPLAY OK]", replay_output)
+        finally:
+            replay_path.unlink(missing_ok=True)
+
+    def test_phase_8_replay_generator_yields_every_tick_and_animates_cli(self) -> None:
+        """8. Fázis: a `yield` generátor minden ticknél ad képkockát, és a CLI animálja is."""
+        initial_world = WorldState(
+            room_width=14,
+            room_height=10,
+            player_one_snake=SnakeEntity(PlayerId.P1, (GridPoint(3, 5),), Direction.RIGHT),
+            player_two_snake=SnakeEntity(PlayerId.P2, (GridPoint(10, 5),), Direction.LEFT),
+            fruit_position=GridPoint(6, 5),
+            fruit_type=FruitType.APPLE,
+        )
+        recorder = InputRecorderService()
+        controller = GameLoopController(
+            initial_world_state=initial_world,
+            random_provider=SystemRandomAdapter(seed=77),
+            input_recorder=recorder,
+            tick_rate_hz=10.0,
+        )
+        controller.steer_player_snake(PlayerId.P1, Direction.UP)
+        controller.advance_simulation_tick(0.1)
+        controller.advance_simulation_tick(0.1)
+        controller.steer_player_snake(PlayerId.P2, Direction.DOWN)
+        controller.advance_simulation_tick(0.1)
+
+        snapshot = MatchReplaySnapshot(
+            random_seed=77,
+            tick_rate_hz=10.0,
+            total_ticks=3,
+            recorded_inputs=recorder.history,
+            expected_final_status=controller.current_state.status,
+        )
+        frame_stream = DeterministicReplayService.iter_replay_states(
+            initial_world, snapshot, lambda seed: SystemRandomAdapter(seed=seed)
+        )
+        self.assertIsInstance(frame_stream, Iterator)
+        frames = list(frame_stream)
+        self.assertEqual([frame.tick for frame in frames], [0, 1, 2, 3])
+        self.assertEqual(
+            frames[-1],
+            DeterministicReplayService.replay_match_deterministically(
+                initial_world, snapshot, lambda seed: SystemRandomAdapter(seed=seed)
+            ),
+        )
+
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tmp:
+            replay_path = Path(tmp.name)
+
+        try:
+            demo_buffer = io.StringIO()
+            with contextlib.redirect_stdout(demo_buffer):
+                game_cli_entrypoint.main(["--demo", "--record", str(replay_path)])
+
+            animated_buffer = io.StringIO()
+            with contextlib.redirect_stdout(animated_buffer):
+                with patch("ascii_duo_snake.game_cli_entrypoint.time.sleep") as mock_sleep:
+                    game_cli_entrypoint.main(["--replay", str(replay_path), "--replay-animate"])
+
+            animated_output = animated_buffer.getvalue()
+            self.assertIn("Tick: 000", animated_output)
+            self.assertIn("Tick: 011", animated_output)
+            self.assertIn("[REPLAY OK] Visszajátszott állapot: player1_won (tick=11", animated_output)
+            self.assertEqual(mock_sleep.call_count, 12)
         finally:
             replay_path.unlink(missing_ok=True)
 

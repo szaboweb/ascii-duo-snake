@@ -110,11 +110,11 @@ class GameRulesEngine:
         )
 
         if player_one_crashed and player_two_crashed:
-            return replace(world_state, status=GameStatus.DRAW)
+            return replace(world_state, status=GameStatus.DRAW, tick=world_state.tick + 1)
         if player_one_crashed:
-            return replace(world_state, status=GameStatus.PLAYER2_WON)
+            return replace(world_state, status=GameStatus.PLAYER2_WON, tick=world_state.tick + 1)
         if player_two_crashed:
-            return replace(world_state, status=GameStatus.PLAYER1_WON)
+            return replace(world_state, status=GameStatus.PLAYER1_WON, tick=world_state.tick + 1)
 
         # 4. CONDITION: Új gyümölcs generálása a manifest szerinti időközönként (pl. 3.0 mp)
         elapsed_fruit_timer_seconds = world_state.time_since_last_fruit_seconds + delta_seconds

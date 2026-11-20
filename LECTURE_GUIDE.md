@@ -36,8 +36,8 @@ Ez a repó **8 egymásra épülő, nehézségi fokozat szerint rendezett (~45 pe
 
 8. **8. Előadás (`phase-8` / `phase-8-replay-es-invarians-teszt`, `main`) — Event Sourcing Replay & 500-Lépéses Invariáns Fuzz-Teszt (~45 perc — Haladó / Mesterfok)**
    - **Diff:** `git diff phase-7 phase-8`
-   - **Új modulok:** `application/deterministic_replay_service.py` (`MatchReplaySnapshot`, `DeterministicReplayService`), `presentation/retro_arcade_sound_adapter.py` (`RetroArcadeSoundAdapter`, opcionális 8-bites hanghatások `GameEventBus` feliratkozóként, Windows `winsound.Beep`, más OS-en néma fallback), `tests/test_advanced_phases_and_invariants.py`.
-   - **Tanulság:** Itt ér össze minden: a `Pure Function` + `Random Seed` + `InputRecord` lista lehetővé teszi egy teljes meccs JSON-ba mentését és 100%-ig azonos visszajátszását, az 500 valódi tick-en át futó invariáns-teszt pedig minden lépésben ellenőrzi a domain szabályokat (nem csökkenő kígyóhossz, legális gyümölcsmező, érvényes katalógustípus).
+   - **Új modulok:** `application/deterministic_replay_service.py` (`MatchReplaySnapshot`, `DeterministicReplayService`, `yield` generátoros `iter_replay_states`), `presentation/retro_arcade_sound_adapter.py` (`RetroArcadeSoundAdapter`, opcionális 8-bites hanghatások `GameEventBus` feliratkozóként, Windows `winsound.Beep`, más OS-en néma fallback), `tests/test_advanced_phases_and_invariants.py`.
+   - **Tanulság:** Itt ér össze minden: a `Pure Function` + `Random Seed` + `InputRecord` lista lehetővé teszi egy teljes meccs JSON-ba mentését és 100%-ig azonos (vagy `--replay-animate` kapcsolóval képkockáról képkockára animált) visszajátszását, az 500 valódi tick-en át futó invariáns-teszt pedig minden lépésben ellenőrzi a domain szabályokat (nem csökkenő kígyóhossz, legális gyümölcsmező, érvényes katalógustípus).
 
 ---
 
@@ -49,6 +49,7 @@ $env:PYTHONPATH="src"; python main.py --demo --theme neon_arcade --p2-bot cautio
 $env:PYTHONPATH="src"; python main.py --speed 6 --theme neon_arcade --p2-bot cautious --sound
 $env:PYTHONPATH="src"; python main.py --demo --record meccs_replay.json
 $env:PYTHONPATH="src"; python main.py --replay meccs_replay.json --theme neon_arcade
+$env:PYTHONPATH="src"; python main.py --replay meccs_replay.json --replay-animate --theme neon_arcade
 $env:PYTHONPATH="src"; python -m promo.run_promo_demo --fast
 $env:PYTHONPATH="src"; python -m promo.run_promo_demo
 ```

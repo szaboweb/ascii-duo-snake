@@ -55,7 +55,7 @@ A metódus kezdőigéje azonnal elárulja, hogy **tiszta lekérdezésről**, **t
 - `can_transition_to(target_phase)`
 - `is_cell_safe_for_bot(target_point, world_state)`
 
-### B) Tiszta számítások, kiválasztók és szerializálók (`compute_`, `advance_`, `select_`, `detect_`, `format_`, `build_`, `parse_`, `serialize_`, `deserialize_`) — 0 mellékhatás
+### B) Tiszta számítások, generátorok, kiválasztók és szerializálók (`compute_`, `advance_`, `select_`, `detect_`, `iter_`, `format_`, `build_`, `parse_`, `serialize_`, `deserialize_`) — 0 mellékhatás
 - `compute_next_world_state(world_state, delta_seconds, random_provider) -> WorldState`
 - `compute_manhattan_distance(first_point, second_point) -> int`
 - `advance_snake_body(snake, next_head_position, eaten_growth_amount) -> SnakeEntity`
@@ -63,6 +63,7 @@ A metódus kezdőigéje azonnal elárulja, hogy **tiszta lekérdezésről**, **t
 - `select_board_theme(theme_id) -> BoardThemeSpec`
 - `select_bot_strategy(strategy_id) -> BotSteeringStrategy`
 - `detect_transition_events(previous_state, next_state) -> tuple[GameDomainEvent, ...]`
+- `iter_replay_states(initial_world_state, snapshot, random_provider_factory) -> Iterator[WorldState]`
 - `format_board_frame(world_state) -> str`
 - `build_default_manifest_path() -> Path`
 - `parse_manifest_text(raw_json_text) -> WorldState`

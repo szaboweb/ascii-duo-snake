@@ -2,7 +2,7 @@
 
 Ez a repó egy **kétszemélyes, terminálban futó (ASCII/TUI) Snake játék**, amely **0 külső függőséggel** (csak Python 3.11+ standard könyvtárral) mutatja be a tiszta szoftverfejlesztés alapelveit, rétegeit és programozási mintáit 8 egymásra épülő előadási fázisban.
 
-> **A cél nem a leglátványosabb játék**, hanem az, hogy minden kulcsfogalom — *Domain, Contract, State, Enum, Value Object, Operator, Pure Function, Exception, Getter/Setter, Encapsulation, Recorder, DI, Catalog, Manifest, Context Manager, Mock, Theming Catalog, Table-Driven FSM, Strategy Pattern / OCP, Domain Events, Pub-Sub Event Bus, Deterministic Replay, Property-Based Invariant Test* — önálló, 20–250 soros alkalmazásmodulokban (`src/`) legyen tanulmányozható.
+> **A cél nem a leglátványosabb játék**, hanem az, hogy minden kulcsfogalom — *Domain, Contract, State, Enum, Value Object, Operator, Pure Function, Exception, Getter/Setter, Encapsulation, Recorder, DI, Catalog, Manifest, Context Manager, Mock, Theming Catalog, Table-Driven FSM, Strategy Pattern / OCP, Domain Events, Pub-Sub Event Bus, Generator (`yield`), Deterministic Replay, Property-Based Invariant Test* — önálló, 20–275 soros alkalmazásmodulokban (`src/`) legyen tanulmányozható.
 >
 > **Elnevezési szabályok és oktatói tematika:** Lásd a **[`NAMING_CONVENTION.md`](NAMING_CONVENTION.md)** és a **[`LECTURE_GUIDE.md`](LECTURE_GUIDE.md)** fájlokat.
 
@@ -40,6 +40,11 @@ A program a **Clean Architecture (Tiszta Architektúra)** elvét követi. A legf
 - Ha terminál helyett más grafikus felületet szeretnél, **csak a `presentation/` mappát kell kicserélned**.
 - Ha tesztelni akarod az ütközést, a bot AI-t, az eseménybuszt vagy a visszajátszást, a `domain/` és az `application/` **képernyő, billentyűzet és valódi óra nélkül**, ezredmásodpercek alatt futtatható.
 
+> **Mikor NE használj 4 réteget? (Őszinte mérnöki megjegyzés)**
+> - Egy 50–150 soros egyszeri szkriptnél vagy gyors prototípusnál a 4 réteg **felesleges túltervezés** (ott bőven elég 1–2 fájl).
+> - Ebben a repóban a Snake egy **laboratóriumi oktatómodell**: kicsi és mindenki által ismert játék, ezért tisztán megmutatja a mintákat felesleges üzleti zaj nélkül.
+> - Valós projektben ez a felbontás akkor térül meg, amikor a kódot hónapokig/évekig tartják karban, többen dolgoznak rajta, cserélődhet az adatforrás vagy a felület, és gyors automata teszteket szeretnél.
+
 ---
 
 ## 2. Hogyan kel életre egyetlen képkocka? (Adatfolyam)
@@ -72,7 +77,7 @@ Minden időlépés (**tick**) ugyanazon a tiszta körforgáson (Game Loop) megy 
 | **Strategy Pattern & OCP** | `domain/bot_steering_strategy.py` | `BotSteeringStrategy` Protocol, `GreedyFruitBotStrategy`, `CautiousSurvivalBotStrategy` és `BOT_STRATEGY_CATALOG` a szabálymotor átírása nélküli AI-cseréhez. |
 | **Domain Events** | `domain/game_events.py` | `FruitEatenEvent`, `MatchEndedEvent` megváltoztathatatlan események és tiszta `detect_transition_events()` átmenet-felismerés. |
 | **Observer / Pub-Sub Event Bus** | `application/game_event_bus.py`, `presentation/retro_arcade_sound_adapter.py` | `GameEventBus`, `MatchTelemetryCollector` (statisztika és jelvények) és `RetroArcadeSoundAdapter` (eseményre megszólaló 8-bites hangadapter). |
-| **Deterministic Replay** | `application/deterministic_replay_service.py` | `MatchReplaySnapshot` és `DeterministicReplayService`: teljes meccs JSON szerializálása és bitre/tickre azonos visszajátszása. |
+| **Deterministic Replay & Generator (`yield`)** | `application/deterministic_replay_service.py` | `MatchReplaySnapshot`, `DeterministicReplayService.replay_match_deterministically()` és `yield` generátoros `iter_replay_states()` a bitre/tickre azonos és képkockánként animálható visszajátszáshoz. |
 | **Encapsulation & Recorder** | `application/input_recorder_service.py` | Privát `_input_history` lista + csak olvasható `history` getter (`tuple`). |
 | **Getter & Setter** | `application/game_loop_controller.py` | `@property` (`current_state`, `tick_rate_hz`) és `@tick_rate_hz.setter` (`1.0..60.0 Hz` validációval). |
 | **Dependency Injection (DI)** | `application/game_loop_controller.py`, `game_cli_entrypoint.py` | Kívülről beadott függőségek (`RandomNumberProvider`, `InputRecorderService`, `GameEventBus`). |
@@ -130,9 +135,10 @@ $env:PYTHONPATH="src"; python main.py --demo --theme neon_arcade --p2-bot cautio
 # 4. Interaktív 2 fős vagy bot-elleni játék (--sound: Windows-on winsound.Beep, más OS-en néma marad)
 $env:PYTHONPATH="src"; python main.py --speed 6 --theme retro_matrix --p2-bot greedy --sound
 
-# 5. Egyedi pálya, bemenet-rögzítés JSON fájlba és determinisztikus visszajátszás
+# 5. Egyedi pálya, bemenet-rögzítés JSON fájlba és determinisztikus / animált visszajátszás
 $env:PYTHONPATH="src"; python main.py --manifest assets/room_manifest.json --demo --record replay.json
 $env:PYTHONPATH="src"; python main.py --replay replay.json --theme neon_arcade
+$env:PYTHONPATH="src"; python main.py --replay replay.json --replay-animate --theme neon_arcade
 ```
 
 ---

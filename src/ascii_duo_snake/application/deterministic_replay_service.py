@@ -18,14 +18,16 @@ A titok a **Determinisztikus Visszajátszás (Deterministic Replay)** három pil
    melyik játékos milyen irányt nyomott meg.
 
 Ebből a három adatból (`MatchReplaySnapshot`) a `DeterministicReplayService`
-bármikor bitről bitre reprodukálja a teljes mérkőzést!
+bármikor bitről bitre reprodukálja a teljes mérkőzést — akár egyben a végállapotot
+(`replay_match_deterministically`), akár `yield` generátorral képkockáról képkockára
+(`iter_replay_states`) az animált visszajátszáshoz!
 ================================================================================
 """
 
 from __future__ import annotations
 
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 
 from ..domain.domain_contracts import RandomNumberProvider
@@ -137,20 +139,20 @@ class DeterministicReplayService:
             raise ValueError(f"Érvénytelen replay JSON formátum: {error}") from error
 
     @staticmethod
-    def replay_match_deterministically(
+    def iter_replay_states(
         initial_world_state: WorldState,
         snapshot: MatchReplaySnapshot,
         random_provider_factory: Callable[[int], RandomNumberProvider],
-    ) -> WorldState:
-        """Újrajátssza a teljes mérkőzést a kezdőállapotból és a rögzített bemenetekből.
+    ) -> Iterator[WorldState]:
+        """Lépésről lépésre (`yield` generátorral) kiadja a visszajátszás minden képkockáját.
 
         Args:
             initial_world_state: A mérkőzés 0. tickbeli kezdőállapota.
             snapshot: A rögzített bemeneteket és random seedet tartalmazó pillanatkép.
             random_provider_factory: Függvény, amely a seedből `RandomNumberProvider`-t gyárt.
 
-        Returns:
-            A visszajátszás végén előálló végső `WorldState`.
+        Yields:
+            A kezdő (`0.`) ticktől a `total_ticks`-edik tickig minden előálló `WorldState` pillanatképet.
 
         Raises:
             ValueError: Ha a pillanatkép tick-paraméterei érvénytelenek vagy a végső állapot eltér.
@@ -175,11 +177,14 @@ class DeterministicReplayService:
         for record in snapshot.recorded_inputs:
             inputs_by_tick.setdefault(record.tick, []).append(record)
 
+        yield controller.current_state
+
         for _ in range(snapshot.total_ticks):
             tick_records = inputs_by_tick.get(controller.current_state.tick, [])
             for record in tick_records:
                 controller.steer_player_snake(record.player_id, record.target_direction)
             controller.advance_simulation_tick(1.0 / controller.tick_rate_hz)
+            yield controller.current_state
 
         if controller.current_state.status != snapshot.expected_final_status:
             raise ValueError(
@@ -187,4 +192,28 @@ class DeterministicReplayService:
                 f"kapott={controller.current_state.status.value}"
             )
 
-        return controller.current_state
+    @staticmethod
+    def replay_match_deterministically(
+        initial_world_state: WorldState,
+        snapshot: MatchReplaySnapshot,
+        random_provider_factory: Callable[[int], RandomNumberProvider],
+    ) -> WorldState:
+        """Újrajátssza a teljes mérkőzést a kezdőállapotból és a rögzített bemenetekből.
+
+        Args:
+            initial_world_state: A mérkőzés 0. tickbeli kezdőállapota.
+            snapshot: A rögzített bemeneteket és random seedet tartalmazó pillanatkép.
+            random_provider_factory: Függvény, amely a seedből `RandomNumberProvider`-t gyárt.
+
+        Returns:
+            A visszajátszás végén előálló végső `WorldState`.
+
+        Raises:
+            ValueError: Ha a pillanatkép tick-paraméterei érvénytelenek vagy a végső állapot eltér.
+        """
+        final_world_state = initial_world_state
+        for frame_state in DeterministicReplayService.iter_replay_states(
+            initial_world_state, snapshot, random_provider_factory
+        ):
+            final_world_state = frame_state
+        return final_world_state

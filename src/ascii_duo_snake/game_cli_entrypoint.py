@@ -137,6 +137,12 @@ def _build_argument_parser() -> argparse.ArgumentParser:
     argument_parser.add_argument("--seed", type=int, default=None, help="Véletlenszám-kezdőmag (demóban alapértelmezetten 42)")
     argument_parser.add_argument("--record", type=Path, default=None, help="Bemenetek mentése visszajátszási JSON fájlba")
     argument_parser.add_argument("--replay", type=Path, default=None, help="Mentett JSON visszajátszás determinisztikus futtatása")
+    argument_parser.add_argument(
+        "--replay-animate",
+        action="store_true",
+        default=False,
+        help="Mentett JSON visszajátszás lépésenkénti, animált lejátszása (`yield` generátorral)",
+    )
     return argument_parser
 
 
@@ -154,17 +160,28 @@ def _run_replay_session(
     initial_world_state: WorldState,
     board_renderer: AsciiBoardRenderer,
     state_machine: SessionStateMachine,
+    animate_frames: bool = False,
 ) -> None:
     """Betölti és determinisztikusan újrajátssza a mentett mérkőzést."""
     state_machine.transition_to(SessionPhase.REPLAY)
     snapshot = DeterministicReplayService.deserialize_replay_from_json(
         replay_path.read_text(encoding="utf-8")
     )
-    replayed_state = DeterministicReplayService.replay_match_deterministically(
-        initial_world_state, snapshot, lambda seed: SystemRandomAdapter(seed=seed)
-    )
+    if animate_frames:
+        frame_delay_seconds = 1.0 / snapshot.tick_rate_hz
+        replayed_state = initial_world_state
+        for frame_state in DeterministicReplayService.iter_replay_states(
+            initial_world_state, snapshot, lambda seed: SystemRandomAdapter(seed=seed)
+        ):
+            board_renderer.render_board_frame(frame_state, clear_screen=True)
+            replayed_state = frame_state
+            time.sleep(frame_delay_seconds)
+    else:
+        replayed_state = DeterministicReplayService.replay_match_deterministically(
+            initial_world_state, snapshot, lambda seed: SystemRandomAdapter(seed=seed)
+        )
+        board_renderer.render_board_frame(replayed_state, clear_screen=False)
     state_machine.transition_to(SessionPhase.GAME_OVER)
-    board_renderer.render_board_frame(replayed_state, clear_screen=False)
     print(
         f"[REPLAY OK] Visszajátszott állapot: {replayed_state.status.value} "
         f"(tick={replayed_state.tick}, seed={snapshot.random_seed})"
@@ -211,7 +228,13 @@ def main(argv: list[str] | None = None) -> None:
     telemetry_collector = MatchTelemetryCollector()
 
     if parsed_arguments.replay is not None:
-        _run_replay_session(parsed_arguments.replay, initial_world_state, board_renderer, state_machine)
+        _run_replay_session(
+            parsed_arguments.replay,
+            initial_world_state,
+            board_renderer,
+            state_machine,
+            animate_frames=parsed_arguments.replay_animate,
+        )
         _print_session_summary(telemetry_collector, state_machine)
         return
 
