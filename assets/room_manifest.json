@@ -1,0 +1,7 @@
+{
+  "width": 30,
+  "height": 15,
+  "fruitSpawnIntervalSeconds": 3.0,
+  "p1Start": { "x": 5, "y": 7 },
+  "p2Start": { "x": 24, "y": 7 }
+}

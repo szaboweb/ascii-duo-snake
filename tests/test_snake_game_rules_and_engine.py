@@ -1,13 +1,20 @@
-"""UNIT TEST & MOCK (1-3. előadás): Headless szabálymotor, DI és regressziós tesztek."""
+"""UNIT TEST & MOCK: Headless tesztek és regressziós tesztek 0 sys.path hackkel."""
 
+from pathlib import Path
+import tempfile
 import unittest
 
 from ascii_duo_snake.application.game_loop_controller import GameLoopController
+from ascii_duo_snake.application.input_recorder_service import InputRecorderService
+from ascii_duo_snake.domain.domain_contracts import RoomManifestLoader
+from ascii_duo_snake.domain.domain_exceptions import InvalidRoomManifestException
 from ascii_duo_snake.domain.game_enums import Direction, FruitType, GameStatus, PlayerId
 from ascii_duo_snake.domain.game_rules_engine import GameRulesEngine
 from ascii_duo_snake.domain.grid_point_value import GridPoint
 from ascii_duo_snake.domain.snake_entity import SnakeEntity, is_opposite_direction
 from ascii_duo_snake.domain.world_state import WorldState
+from ascii_duo_snake.infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
+from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
 
 
 class FakeRandomNumberProvider:
@@ -182,9 +189,11 @@ class SnakeGameRulesAndEngineTests(unittest.TestCase):
                 direction=Direction.LEFT,
             ),
         )
+        input_recorder = InputRecorderService()
         controller = GameLoopController(
             initial_world_state=initial_world_state,
             random_provider=FakeRandomNumberProvider([1]),
+            input_recorder=input_recorder,
             tick_rate_hz=8.0,
         )
 
@@ -198,13 +207,51 @@ class SnakeGameRulesAndEngineTests(unittest.TestCase):
         with self.assertRaises(AttributeError):
             controller.current_state = initial_world_state  # type: ignore[misc]
 
+        # Hibás player_id -> ValueError ÉS nem szennyezi az input_recorder-t
         with self.assertRaises(ValueError):
             controller.steer_player_snake("P3", Direction.UP)  # type: ignore[arg-type]
+        self.assertEqual(len(input_recorder.history), 0)
 
         controller.steer_player_snake(PlayerId.P1, Direction.UP)
-        controller.steer_player_snake(PlayerId.P2, Direction.DOWN)
-        self.assertEqual(controller.current_state.player_one_snake.direction, Direction.UP)
-        self.assertEqual(controller.current_state.player_two_snake.direction, Direction.DOWN)
+        self.assertEqual(len(input_recorder.history), 1)
+        self.assertEqual(input_recorder.history[0].player_id, PlayerId.P1)
+
+    def test_manifest_loader_validation_and_real_asset(self) -> None:
+        manifest_loader: RoomManifestLoader = JsonRoomManifestLoader()
+
+        # Valódi asset betöltése + renderer smoke teszt
+        real_manifest_path = (
+            Path(__file__).resolve().parent.parent / "assets" / "room_manifest.json"
+        )
+        loaded_world_state = manifest_loader.load_initial_world_state(str(real_manifest_path))
+        rendered_frame = AsciiBoardRenderer().format_board_frame(loaded_world_state)
+        self.assertIn("#", rendered_frame)
+        self.assertIn("1", rendered_frame)
+        self.assertIn("2", rendered_frame)
+
+        # Hiányzó fájl, hiányzó kulcs, falon lévő spawn, ütköző spawn -> InvalidRoomManifestException
+        with self.assertRaises(InvalidRoomManifestException):
+            manifest_loader.load_initial_world_state("nem_letezo_manifest.json")
+
+        invalid_payloads = [
+            '{"width": 20}',  # hiányzó kulcsok
+            '{"width": 20, "height": 15, "p1Start": {"x": 0, "y": 5}, "p2Start": {"x": 10, "y": 5}}',
+            '{"width": 20, "height": 15, "p1Start": {"x": 5, "y": 5}, "p2Start": {"x": 5, "y": 5}}',
+        ]
+        for invalid_payload in invalid_payloads:
+            with tempfile.NamedTemporaryFile(
+                "w",
+                suffix=".json",
+                delete=False,
+                encoding="utf-8",
+            ) as temp_file:
+                temp_file.write(invalid_payload)
+                invalid_manifest_path = temp_file.name
+            try:
+                with self.assertRaises(InvalidRoomManifestException):
+                    manifest_loader.load_initial_world_state(invalid_manifest_path)
+            finally:
+                Path(invalid_manifest_path).unlink(missing_ok=True)
 
 
 if __name__ == "__main__":

@@ -1,11 +1,11 @@
 """1. DOMAIN RÉTEG — CONTRACT (Interface / Dependency Inversion Principle).
 
-Miért itt, a Domain rétegben van ez a szerződés?
+Miért itt, a Domain rétegben vannak ezek a szerződések?
     Ez a **Dependency Inversion (Függőség-megfordítás)** elve: a Domain réteg
-    nem függhet a valódi `random` modultól. Ehelyett a Domain előír egy
-    *szerződést* (`typing.Protocol`), hogy milyen véletlenszám-képességre van
-    szüksége — a külső réteg (`infrastructure/system_random_adapter.py`) és a
-    tesztek (`tests/`) pedig olyan objektumot adnak be, amely teljesíti ezt.
+    nem függhet fájlrendszertől (`json`, `Path`) vagy a valódi `random` modultól.
+    Ehelyett a Domain előír egy *szerződést* (`typing.Protocol`), hogy milyen
+    képességekre van szüksége — a külső rétegek (`infrastructure/`) és a tesztek
+    (`tests/`) pedig olyan objektumot adnak be, amely teljesíti ezt a szerződést.
 
 Előny a tesztelésben:
     A `RandomNumberProvider` helyére a unit tesztben egy `FakeRandomNumberProvider`
@@ -13,6 +13,16 @@ Előny a tesztelésben:
 """
 
 from typing import Protocol
+
+from .world_state import WorldState
+
+
+class RoomManifestLoader(Protocol):
+    """Szerződés kezdő pályaállapot betöltéséhez (fájlból, memóriából vagy hálózatról)."""
+
+    def load_initial_world_state(self, manifest_path: str) -> WorldState:
+        """Beolvassa és validálja a pályaleírót, majd visszaadja a kezdő `WorldState`-et."""
+        ...
 
 
 class RandomNumberProvider(Protocol):

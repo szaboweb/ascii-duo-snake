@@ -1,44 +1,28 @@
-"""COMPOSITION ROOT (Belépési pont) — 3. előadás: 2 kígyó, gyümölcsök és DI.
+"""COMPOSITION ROOT (Belépési pont) — Dependency Injection összedrótozása.
 
-Ebben a fázisban a két kígyó és a szoba mérete még kódból készül el
-(`build_default_world_state`), a véletlengenerálás viszont már szerződés
-(`RandomNumberProvider`) mögött, `SystemRandomAdapter` befecskendezésével működik.
-A külső JSON manifest betöltő a 4. előadásban érkezik.
+Mi az a Composition Root?
+    A program egyetlen olyan helye, amely ismeri az összes réteg konkrét osztályait
+    (`JsonRoomManifestLoader`, `SystemRandomAdapter`, `InputRecorderService`,
+    `GameLoopController`, `AsciiBoardRenderer`, `TerminalKeyboardAdapter`),
+    és itt köti össze őket.
+
+    Mivel az összedrótozás egy helyre van koncentrálva, a játék többi része laza
+    csatolású (loosely coupled) marad: bármelyik komponens lecserélhető anélkül,
+    hogy a `domain/` vagy `application/` réteghez hozzá kellene nyúlni.
 """
 
 import argparse
+from pathlib import Path
 import time
 
 from .application.game_loop_controller import GameLoopController
-from .domain.domain_contracts import RandomNumberProvider
+from .application.input_recorder_service import InputRecorderService
+from .domain.domain_contracts import RandomNumberProvider, RoomManifestLoader
 from .domain.game_enums import Direction, GameStatus, PlayerId
-from .domain.grid_point_value import GridPoint
-from .domain.snake_entity import SnakeEntity
-from .domain.world_state import WorldState
+from .infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
 from .infrastructure.system_random_adapter import SystemRandomAdapter
 from .presentation.ascii_board_renderer import AsciiBoardRenderer
 from .presentation.terminal_keyboard_adapter import TerminalKeyboardAdapter
-
-
-def build_default_world_state() -> WorldState:
-    """Összeállítja az alapértelmezett 24x16-os, kétkígyós kezdő világállapotot."""
-    player_one_snake = SnakeEntity(
-        player_id=PlayerId.P1,
-        body=(GridPoint(5, 8),),
-        direction=Direction.RIGHT,
-    )
-    player_two_snake = SnakeEntity(
-        player_id=PlayerId.P2,
-        body=(GridPoint(18, 8),),
-        direction=Direction.LEFT,
-    )
-    return WorldState(
-        room_width=24,
-        room_height=16,
-        player_one_snake=player_one_snake,
-        player_two_snake=player_two_snake,
-        fruit_spawn_interval_seconds=3.0,
-    )
 
 
 def run_demo_session(
@@ -46,13 +30,13 @@ def run_demo_session(
     board_renderer: AsciiBoardRenderer,
     step_count: int = 12,
 ) -> None:
-    """Rövid, determinisztikus bemutató kör két kígyóval és gyümölcs-spawninggal."""
+    """Rövid, determinisztikus bemutató kör előre megírt bemenetekkel."""
     scripted_inputs: dict[int, tuple[PlayerId, Direction]] = {
         2: (PlayerId.P1, Direction.UP),
         4: (PlayerId.P2, Direction.DOWN),
         6: (PlayerId.P1, Direction.RIGHT),
     }
-    delta_seconds = 1.0 / controller.tick_rate_hz
+    delta_seconds = 1.0 / controller.tick_rate_hz  # GETTER használata
 
     for _ in range(step_count):
         if controller.current_state.status != GameStatus.RUNNING:
@@ -64,13 +48,15 @@ def run_demo_session(
         controller.advance_simulation_tick(delta_seconds)
 
     board_renderer.render_board_frame(controller.current_state, clear_screen=False)
+    recorded_history = controller.input_recorder.history
+    print(f"Rögzített bemenetek ({len(recorded_history)} db): {recorded_history}")
 
 
 def run_interactive_session(
     controller: GameLoopController,
     board_renderer: AsciiBoardRenderer,
 ) -> None:
-    """Valós idejű 2 fős játékciklus (P1: WASD, P2: IJKL, Kilépés: Q)."""
+    """Valós idejű játékciklus (Game Loop): Input -> Update -> Render -> Sleep."""
     delta_seconds = 1.0 / controller.tick_rate_hz
 
     with TerminalKeyboardAdapter() as keyboard_adapter:
@@ -86,12 +72,18 @@ def run_interactive_session(
             time.sleep(delta_seconds)
 
     print(f"\nJáték vége! Eredmény: {controller.current_state.status.value}")
+    print(f"Rögzített irányváltások száma: {len(controller.input_recorder.history)}")
+
+
+def build_default_manifest_path() -> Path:
+    """Visszaadja az alapértelmezett `assets/room_manifest.json` útvonalát."""
+    return Path(__file__).resolve().parents[2] / "assets" / "room_manifest.json"
 
 
 def main() -> None:
-    """CLI argumentumok feldolgozása, DI összedrótozás és a játék indítása."""
+    """CLI argumentumok feldolgozása, függőségek bekötése és a játék indítása."""
     argument_parser = argparse.ArgumentParser(
-        description="ASCII Duo Snake — 3. előadás (2 kígyó, gyümölcsök, DI)"
+        description="ASCII Duo Snake (Python Clean Architecture)"
     )
     argument_parser.add_argument(
         "--demo",
@@ -104,17 +96,29 @@ def main() -> None:
         default=6.0,
         help="Sebesség (tick/mp, 1..60)",
     )
+    argument_parser.add_argument(
+        "--manifest",
+        type=Path,
+        default=build_default_manifest_path(),
+        help="Pálya JSON",
+    )
     parsed_arguments = argument_parser.parse_args()
 
+    # DEPENDENCY INJECTION: Konkrét megvalósítások hozzárendelése szerződés-típusokhoz
+    manifest_loader: RoomManifestLoader = JsonRoomManifestLoader()
     random_provider: RandomNumberProvider = SystemRandomAdapter(
         seed=42 if parsed_arguments.demo else None
     )
+    input_recorder = InputRecorderService()
     board_renderer = AsciiBoardRenderer()
+
+    initial_world_state = manifest_loader.load_initial_world_state(str(parsed_arguments.manifest))
     controller = GameLoopController(
-        initial_world_state=build_default_world_state(),
+        initial_world_state=initial_world_state,
         random_provider=random_provider,
+        input_recorder=input_recorder,
     )
-    controller.tick_rate_hz = parsed_arguments.speed
+    controller.tick_rate_hz = parsed_arguments.speed  # SETTER használata (1.0..60.0 validációval)
 
     if parsed_arguments.demo:
         run_demo_session(controller, board_renderer)
