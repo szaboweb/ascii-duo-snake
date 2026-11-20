@@ -1,20 +1,21 @@
-# 2. Előadás — Egy kígyó folyamatos mozgása és irányítása (~50 perc)
+# 3. Előadás — Második kígyó, véletlengenerálás, gyümölcsök és növekedés (~50 perc)
 
-**Git fázis:** `phase-2` (`phase-2-egy-kigyo`)  
-**Változások az 1. előadáshoz képest:** `git diff phase-1 phase-2`
+**Git fázis:** `phase-3` (`phase-3-ket-kigyo-gyumolcs`)  
+**Változások a 2. előadáshoz képest:** `git diff phase-2 phase-3`
 
 ## Cél
-Az 1. előadás statikus modelljét életre keltjük: 1 kígyó folyamatosan halad, `WASD`-vel irányítható, nem tud 180°-ban önmagába fordulni, és falba ütközve véget ér a játék.
+Az egyjátékos kígyót valódi 2 fős (`WASD` + `IJKL`) játékká bővítjük: bevezetjük a gyümölcs-katalógust, a determinisztikusan tesztelhető véletlengenerálást, a több-lépéses növekedést és a két kígyó közötti ütközésvizsgálatot.
 
 ## Tanított fogalmak (~50 perc)
-1. **Deklaratív lookup táblák (10 perc):** `OPPOSITE_DIRECTIONS` (`snake_entity.py`) és `DIRECTION_DELTAS` (`game_rules_engine.py`) hosszú `if/elif` láncok helyett.
-2. **Pure Function (10 perc):** `GameRulesEngine.compute_next_world_state()` — régi `WorldState` → új `WorldState` (0 `print`, 0 mellékhatás).
-3. **Application réteg + Getter & Setter (15 perc):** `GameLoopController` (`@property current_state`, `@property tick_rate_hz` + `@tick_rate_hz.setter` 1..60 Hz validációval).
-4. **Context Manager & Game Loop (15 perc):** `with TerminalKeyboardAdapter():` (`__enter__`/`__exit__`) és a klasszikus `Input → Update → Render → Sleep` ciklus.
+1. **Második kígyó & Head-Swap sarokeset (10 perc):** `player_two_snake` kompozíció (`WorldState`), `IJKL` billentyűzet-kiosztás (`TerminalKeyboardAdapter`), és az `is_head_swap_collision()` predikátum, amely megakadályozza, hogy két szemből érkező kígyó átsétáljon egymáson (`GameStatus.DRAW`).
+2. **Data-Driven Catalog (`FRUIT_CATALOG`) (8 perc):** `FruitType` enum + `MappingProxyType` katalógus (`APPLE` `+1`, `GOLDEN_MELON` `+3`) a `domain/fruit_catalog.py` fájlban.
+3. **Contract (`Protocol`), Dependency Injection & Mock (12 perc):** `RandomNumberProvider` szerződés (`domain_contracts.py`), valódi `SystemRandomAdapter` (`infrastructure/`), és `FakeRandomNumberProvider` mock a determinisztikus tesztekhez.
+4. **Több-lépéses növekedés (`pending_growth`) (10 perc):** `GameRulesEngine.advance_snake_body()` — a `GOLDEN_MELON` `+3` növekedése 3 egymást követő tick alatt, faroklevágás kihagyásával valósul meg.
+5. **Ütközésmentes spawn (`free_cells`) (10 perc):** `select_free_fruit_position()` `set`-alapú `O(1)` foglaltság-szűréssel — sosem tesz gyümölcsöt kígyóra, teli pályán tisztán `None`-t ad vissza.
 
 ## Élő demó parancsok
 ```powershell
 $env:PYTHONPATH="src"; python -m unittest discover -s tests -v
 $env:PYTHONPATH="src"; python main.py --demo
-$env:PYTHONPATH="src"; python main.py --speed 6   # P1: WASD, Kilépés: Q
+$env:PYTHONPATH="src"; python main.py --speed 6   # P1: WASD, P2: IJKL, Kilépés: Q
 ```
