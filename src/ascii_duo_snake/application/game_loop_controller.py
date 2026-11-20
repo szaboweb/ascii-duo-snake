@@ -18,13 +18,15 @@ from dataclasses import replace
 
 from ..domain.domain_contracts import RandomNumberProvider
 from ..domain.game_enums import Direction, PlayerId
+from ..domain.game_events import detect_transition_events
 from ..domain.game_rules_engine import GameRulesEngine
 from ..domain.world_state import WorldState
+from .game_event_bus import GameEventBus
 from .input_recorder_service import InputRecorderService
 
 
 class GameLoopController:
-    """Összefogja az állapotot, a szabálymotort, a véletlengenerátort és a rögzítőt."""
+    """Összefogja az állapotot, a szabálymotort, a véletlengenerátort, a rögzítőt és az eseménybuszt."""
 
     def __init__(
         self,
@@ -32,11 +34,13 @@ class GameLoopController:
         random_provider: RandomNumberProvider,
         input_recorder: InputRecorderService,
         tick_rate_hz: float = 6.0,
+        event_bus: GameEventBus | None = None,
     ) -> None:
         """Függőségek befecskendezése konstruktoron keresztül (Constructor DI)."""
         self._world_state = initial_world_state
         self._random_provider = random_provider
         self.input_recorder = input_recorder
+        self._event_bus = event_bus
         self._tick_rate_hz = 6.0
         # A setteren keresztül állítjuk be, így a konstruktor is automatikusan validál!
         self.tick_rate_hz = tick_rate_hz
@@ -83,9 +87,13 @@ class GameLoopController:
             raise ValueError(f"Ismeretlen játékos-azonosító: {player_id!r}")
 
     def advance_simulation_tick(self, delta_seconds: float) -> None:
-        """Lépteti a játékot egy időlépéssel (`delta_seconds` mp) a tiszta `GameRulesEngine` hívásával."""
+        """Lépteti a játékot egy időlépéssel, és opcionálisan publikálja a Domain Eventeket."""
+        previous_state = self._world_state
         self._world_state = GameRulesEngine.compute_next_world_state(
             world_state=self._world_state,
             delta_seconds=delta_seconds,
             random_provider=self._random_provider,
         )
+        if self._event_bus is not None:
+            events = detect_transition_events(previous_state, self._world_state)
+            self._event_bus.publish_events(events)
