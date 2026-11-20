@@ -210,9 +210,11 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
     def test_phase_8_five_hundred_ticks_domain_invariants_never_violated(self) -> None:
         """8. Fázis: 500 lépéses Property-Based Invariáns Fuzz-Teszt két óvatos bottal."""
         bot = CautiousSurvivalBotStrategy()
+        target_ticks = 500
         total_verified_ticks = 0
+        match_index = 0
 
-        for match_seed in range(10):
+        while total_verified_ticks < target_ticks and match_index < target_ticks:
             state = WorldState(
                 room_width=16,
                 room_height=10,
@@ -222,9 +224,10 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
                 fruit_type=FruitType.APPLE,
                 fruit_spawn_interval_seconds=0.2,
             )
-            match_rng = SystemRandomAdapter(seed=100 + match_seed)
+            match_rng = SystemRandomAdapter(seed=100 + match_index)
+            match_index += 1
             for _ in range(50):
-                if state.status != GameStatus.RUNNING:
+                if state.status != GameStatus.RUNNING or total_verified_ticks >= target_ticks:
                     break
                 p1_dir = bot.choose_next_direction(state, PlayerId.P1)
                 p2_dir = bot.choose_next_direction(state, PlayerId.P2)
@@ -260,7 +263,7 @@ class AdvancedPhasesAndInvariantsTests(unittest.TestCase):
                 self.assertIn(next_state.fruit_type, FRUIT_CATALOG)
                 state = next_state
 
-        self.assertGreaterEqual(total_verified_ticks, 150)
+        self.assertEqual(total_verified_ticks, target_ticks)
 
     def test_phase_8_replay_rejects_status_mismatch_and_invalid_tick_rate(self) -> None:
         """8. Fázis regresszió: replay ellenőrzi az elvárt végállapotot és érvényes tick rátát."""

@@ -36,8 +36,8 @@ Ez a repó **8 egymásra épülő, nehézségi fokozat szerint rendezett (~45 pe
 
 8. **8. Előadás (`phase-8` / `phase-8-replay-es-invarians-teszt`, `main`) — Event Sourcing Replay & 500-Lépéses Invariáns Fuzz-Teszt (~45 perc — Haladó / Mesterfok)**
    - **Diff:** `git diff phase-7 phase-8`
-   - **Új modulok:** `application/deterministic_replay_service.py` (`MatchReplaySnapshot`, `DeterministicReplayService`), `tests/test_advanced_phases_and_invariants.py`.
-   - **Tanulság:** Itt ér össze minden: a `Pure Function` + `Random Seed` + `InputRecord` lista lehetővé teszi egy teljes meccs JSON-ba mentését és 100%-ig azonos visszajátszását, az 500 lépéses invariáns-teszt pedig matematikai szigorral bizonyítja a motor helyességét.
+   - **Új modulok:** `application/deterministic_replay_service.py` (`MatchReplaySnapshot`, `DeterministicReplayService`), `presentation/retro_arcade_sound_adapter.py` (`RetroArcadeSoundAdapter`, opcionális 8-bites hanghatások `GameEventBus` feliratkozóként, Windows `winsound.Beep`, más OS-en néma fallback), `tests/test_advanced_phases_and_invariants.py`.
+   - **Tanulság:** Itt ér össze minden: a `Pure Function` + `Random Seed` + `InputRecord` lista lehetővé teszi egy teljes meccs JSON-ba mentését és 100%-ig azonos visszajátszását, az 500 valódi tick-en át futó invariáns-teszt pedig minden lépésben ellenőrzi a domain szabályokat (nem csökkenő kígyóhossz, legális gyümölcsmező, érvényes katalógustípus).
 
 ---
 

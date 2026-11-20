@@ -26,9 +26,9 @@ def configure_utf8_stdout() -> None:
 
 
 def parse_cli_arguments(argv: list[str] | None = None) -> argparse.Namespace:
-    """Parancssori kapcsolók (`--config`, `--fast`, `--loop`) feldolgozása."""
+    """Parancssori kapcsolók (`--config`, `--fast`, `--loop`, `--mute`) feldolgozása."""
     parser = argparse.ArgumentParser(
-        description="ASCII Duo Snake — Adatvezérelt (Data-Driven) 4 fázisú promóciós demó"
+        description="ASCII Duo Snake — Adatvezérelt (Data-Driven) 8 fázisú promóciós demó"
     )
     parser.add_argument(
         "--config",
