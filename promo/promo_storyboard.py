@@ -10,15 +10,23 @@ from pathlib import Path
 import tempfile
 import time
 
+from ascii_duo_snake.application.deterministic_replay_service import (
+    DeterministicReplayService,
+    MatchReplaySnapshot,
+)
+from ascii_duo_snake.application.game_event_bus import GameEventBus, MatchTelemetryCollector
 from ascii_duo_snake.application.game_loop_controller import GameLoopController
 from ascii_duo_snake.application.input_recorder_service import InputRecorderService
+from ascii_duo_snake.domain.bot_steering_strategy import select_bot_strategy
 from ascii_duo_snake.domain.domain_exceptions import InvalidRoomManifestException
 from ascii_duo_snake.domain.game_enums import Direction, FruitType, GameStatus, PlayerId
 from ascii_duo_snake.domain.grid_point_value import GridPoint
+from ascii_duo_snake.domain.session_state_machine import SessionPhase, SessionStateMachine
 from ascii_duo_snake.domain.snake_entity import SnakeEntity
 from ascii_duo_snake.domain.world_state import WorldState
 from ascii_duo_snake.infrastructure.json_room_manifest_loader import JsonRoomManifestLoader
 from ascii_duo_snake.presentation.ascii_board_renderer import AsciiBoardRenderer
+from ascii_duo_snake.presentation.board_theme_catalog import select_board_theme
 from promo_config_loader import (
     PromoSceneConfig,
     PromoStoryboardConfig,
@@ -191,29 +199,88 @@ def _run_validation_and_closing_scene(
     pause_seconds(_resolve_scene_pause(scene, timings))
 
 
+def _apply_bot_strategies(scene: PromoSceneConfig, controller: GameLoopController) -> None:
+    """Ha a jelenetben Bot AI stratégia van megadva, kiszámítja és alkalmazza az irányt."""
+    for player_id, strategy_id in ((PlayerId.P1, scene.p1_bot_strategy), (PlayerId.P2, scene.p2_bot_strategy)):
+        if strategy_id is not None:
+            direction = select_bot_strategy(strategy_id).choose_next_direction(controller.current_state, player_id)
+            controller.steer_player_snake(player_id, direction)
+
+
+def _print_post_simulation_badges(
+    scene: PromoSceneConfig,
+    initial_world: WorldState,
+    controller: GameLoopController,
+    event_bus: GameEventBus,
+    telemetry: MatchTelemetryCollector,
+) -> None:
+    """Kiírja az opcionális Event Bus telemetriát és a Determinisztikus Replay ellenőrzést."""
+    if scene.enable_telemetry:
+        print(
+            colorize(
+                f"  [EVENT BUS] Események: {len(event_bus.published_events)} db | "
+                f"Jelvények: {list(telemetry.unlocked_badges)}",
+                ANSI_CYAN,
+            )
+        )
+    if scene.enable_replay_check:
+        snapshot = MatchReplaySnapshot(
+            random_seed=0,
+            tick_rate_hz=controller.tick_rate_hz,
+            total_ticks=scene.steps,
+            recorded_inputs=controller.input_recorder.history,
+            expected_final_status=controller.current_state.status,
+        )
+        restored = DeterministicReplayService.deserialize_replay_from_json(
+            DeterministicReplayService.serialize_replay_to_json(snapshot)
+        )
+        replayed = DeterministicReplayService.replay_match_deterministically(
+            initial_world, restored, lambda _seed: PromoRandomProvider([0, 0])
+        )
+        print(
+            colorize(
+                f"  [REPLAY VERIFIED] Visszajátszott WorldState == Élő WorldState: {replayed == controller.current_state}",
+                ANSI_GREEN,
+            )
+        )
+
+
 def _run_simulation_scene(
     scene: PromoSceneConfig,
     timings: PromoTimingsConfig,
     clear_screen: bool,
 ) -> None:
     """Statikus vagy többlépéses élő szimulációs jelenetet futtat konfiguráció alapján."""
-    renderer = AsciiBoardRenderer()
+    renderer = AsciiBoardRenderer(theme=select_board_theme(scene.theme_id))
     world_state = build_initial_world_state(scene)
     if scene.steps == 0:
         clear_terminal_if_enabled(clear_screen)
         print_scene_banner(scene, timings.typewriter_char_delay_seconds)
+        if scene.theme_id != "classic_ascii":
+            fsm = SessionStateMachine()
+            fsm.transition_to(SessionPhase.PLAYING)
+            fsm.transition_to(SessionPhase.PAUSED)
+            fsm.transition_to(SessionPhase.PLAYING)
+            history_labels = " -> ".join(phase.value.upper() for phase in fsm.transition_history)
+            print(colorize(f"  [FSM & THEME] Téma: {renderer.theme.display_name} | Állapotgép: {history_labels}", ANSI_CYAN))
         print(renderer.format_board_frame(world_state))
         print_highlights(scene.highlights)
         pause_seconds(_resolve_scene_pause(scene, timings))
         return
 
-    controller = GameLoopController(world_state, PromoRandomProvider([0, 0]), InputRecorderService())
+    event_bus = GameEventBus()
+    telemetry = MatchTelemetryCollector()
+    event_bus.subscribe_listener(telemetry.on_domain_event)
+    controller = GameLoopController(
+        world_state, PromoRandomProvider([0, 0]), InputRecorderService(), event_bus=event_bus
+    )
     controller.tick_rate_hz = scene.tick_rate_hz
     inputs_by_tick = _index_inputs_by_tick(scene.scripted_inputs)
     has_p1_script = any(cmd.player_id == PlayerId.P1 for cmd in scene.scripted_inputs)
 
     for step_index in range(scene.steps):
         active_key: str | None = None
+        _apply_bot_strategies(scene, controller)
         for cmd in inputs_by_tick.get(step_index, []):
             controller.steer_player_snake(cmd.player_id, cmd.direction)
             if cmd.player_id == PlayerId.P1:
@@ -224,6 +291,8 @@ def _run_simulation_scene(
         print_scene_banner(scene, delay)
         if has_p1_script:
             print(f"  {format_wasd_badge(active_key)}   |   tick_rate_hz={controller.tick_rate_hz:.1f} Hz")
+        if scene.p1_bot_strategy or scene.p2_bot_strategy:
+            print(colorize(f"  [STRATEGY AI] P1={scene.p1_bot_strategy or 'human'} vs P2={scene.p2_bot_strategy or 'human'}", ANSI_CYAN))
         if scene.optional_fruit is not None:
             p1 = controller.current_state.player_one_snake
             print(colorize(f"  Tick #{step_index}: P1 hossz={p1.length}, pending_growth={p1.pending_growth}", ANSI_YELLOW))
@@ -233,6 +302,7 @@ def _run_simulation_scene(
 
     if controller.current_state.status != GameStatus.RUNNING:
         print(colorize(f"  -> {controller.current_state.status.value}", ANSI_RED))
+    _print_post_simulation_badges(scene, world_state, controller, event_bus, telemetry)
     print_highlights(scene.highlights)
     pause_seconds(_resolve_scene_pause(scene, timings))
 

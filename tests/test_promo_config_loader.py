@@ -30,7 +30,7 @@ class TestPromoConfigLoader(unittest.TestCase):
         config_path = _PROMO_DIR / "promo_storyboard_config.json"
         storyboard = load_promo_storyboard_config(config_path)
 
-        self.assertEqual(len(storyboard.scenes), 4)
+        self.assertEqual(len(storyboard.scenes), 8)
         self.assertGreaterEqual(storyboard.timings.frame_delay_seconds, 0.0)
         self.assertGreaterEqual(storyboard.timings.typewriter_char_delay_seconds, 0.0)
         self.assertGreaterEqual(storyboard.timings.scene_pause_seconds, 0.0)

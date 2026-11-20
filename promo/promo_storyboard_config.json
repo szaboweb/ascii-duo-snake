@@ -125,7 +125,127 @@
         "3. Infrastructure (JSON, RNG) -----> 1. Domain (Protocol)",
         "Data-Driven Promo: promo/promo_storyboard_config.json"
       ],
-      "pause_after_seconds": 7.0
+      "pause_after_seconds": 5.5
+    },
+    {
+      "id": "phase_5_theming_and_fsm",
+      "phase_badge": "5. FÁZIS — TÉMÁK & ÁLLAPOTGÉP (FSM)",
+      "title": "Data-Driven Vizuális Témák és Táblázatvezérelt Véges Állapotgép",
+      "subtitle": "Fogalmak: BoardThemeSpec, BOARD_THEME_CATALOG, SessionStateMachine, ALLOWED_PHASE_TRANSITIONS",
+      "highlights": [
+        "Data-Driven Theming: 'neon_arcade' téma (█, ·, @, ●, &, ◆) 0 játékszabály-módosítással",
+        "Táblázatvezérelt FSM (ALLOWED_PHASE_TRANSITIONS): tiltott átmenetek kizárása if/elif spagetti nélkül",
+        "can_transition_to() tiszta predikátum (0 mutáció) vs. transition_to() állapotváltó parancs"
+      ],
+      "room_width": 18,
+      "room_height": 8,
+      "tick_rate_hz": 6.0,
+      "steps": 0,
+      "scripted_inputs": [],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 4, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 13, "y": 4, "direction": "left" }
+      ],
+      "optional_fruit": {
+        "x": 9,
+        "y": 4,
+        "fruit_type": "golden_melon"
+      },
+      "validation_cases": [],
+      "closing_layers": [],
+      "theme_id": "neon_arcade"
+    },
+    {
+      "id": "phase_6_strategy_bot_ai",
+      "phase_badge": "6. FÁZIS — STRATEGY PATTERN & BOT AI",
+      "title": "Open/Closed Principle: Cserélhető Bot AI Stratégiák (Cautious vs Greedy)",
+      "subtitle": "Fogalmak: BotSteeringStrategy Protocol, GreedyFruitBotStrategy, CautiousSurvivalBotStrategy",
+      "highlights": [
+        "Strategy Pattern: algoritmusok (viselkedés) cseréje futásidőben közös Protocol mögött",
+        "Open/Closed Principle (OCP): új AI stratégia hozzáadható a GameRulesEngine érintése nélkül",
+        "CautiousSurvivalBotStrategy: 1 lépéses előretekintés (fal- és testütközés elkerülése)"
+      ],
+      "room_width": 18,
+      "room_height": 8,
+      "tick_rate_hz": 6.0,
+      "steps": 5,
+      "scripted_inputs": [],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 3, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 14, "y": 2, "direction": "left" }
+      ],
+      "optional_fruit": {
+        "x": 7,
+        "y": 4,
+        "fruit_type": "apple"
+      },
+      "validation_cases": [],
+      "closing_layers": [],
+      "p1_bot_strategy": "cautious",
+      "p2_bot_strategy": "greedy"
+    },
+    {
+      "id": "phase_7_observer_event_bus",
+      "phase_badge": "7. FÁZIS — DOMAIN EVENTS & OBSERVER BUS",
+      "title": "Eseményvezérelt Architektúra, Pub-Sub EventBus és Achievement Jelvények",
+      "subtitle": "Fogalmak: FruitEatenEvent, MatchEndedEvent, GameEventBus, MatchTelemetryCollector",
+      "highlights": [
+        "detect_transition_events(prev, next): tiszta függvény, ami állapotátmenetből eseményeket nyer ki",
+        "Observer / Pub-Sub (GameEventBus): laza csatolás a játékmotor és a telemetria között",
+        "MatchTelemetryCollector: automatikus P1_DINNYEVADASZ jelvény feloldása a domain érintése nélkül"
+      ],
+      "room_width": 18,
+      "room_height": 8,
+      "tick_rate_hz": 6.0,
+      "steps": 4,
+      "scripted_inputs": [],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 3, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 14, "y": 5, "direction": "left" }
+      ],
+      "optional_fruit": {
+        "x": 5,
+        "y": 4,
+        "fruit_type": "golden_melon"
+      },
+      "validation_cases": [],
+      "closing_layers": [],
+      "p1_bot_strategy": "greedy",
+      "p2_bot_strategy": "cautious",
+      "enable_telemetry": true
+    },
+    {
+      "id": "phase_8_replay_and_invariants",
+      "phase_badge": "8. FÁZIS — EVENT SOURCING REPLAY & INVARIÁNS TESZT",
+      "title": "Determinisztikus JSON Visszajátszás és 500 Lépéses Invariáns Fuzz-Teszt",
+      "subtitle": "Fogalmak: MatchReplaySnapshot, DeterministicReplayService, Property-Based Invariants",
+      "highlights": [
+        "Event Sourcing Replay: Kezdőállapot + Seed + InputRecord lista = 100% azonos végállapot!",
+        "JSON szerializáció és visszajátszás: élőben ellenőrizve (replayed == controller.current_state)",
+        "Property-Based Invariáns Teszt: 500 lépésen át 0 szabálysertés (gyümölcs, hossz, ütközés)"
+      ],
+      "room_width": 18,
+      "room_height": 8,
+      "tick_rate_hz": 6.0,
+      "steps": 5,
+      "scripted_inputs": [],
+      "initial_snakes": [
+        { "player_id": "P1", "x": 2, "y": 3, "direction": "right" },
+        { "player_id": "P2", "x": 15, "y": 5, "direction": "left" }
+      ],
+      "optional_fruit": {
+        "x": 6,
+        "y": 3,
+        "fruit_type": "golden_melon"
+      },
+      "validation_cases": [],
+      "closing_layers": [],
+      "theme_id": "neon_arcade",
+      "p1_bot_strategy": "cautious",
+      "p2_bot_strategy": "cautious",
+      "enable_telemetry": true,
+      "enable_replay_check": true,
+      "pause_after_seconds": 8.0
     }
   ]
 }

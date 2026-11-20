@@ -84,6 +84,11 @@ class PromoSceneConfig:
     validation_cases: tuple[ValidationCaseConfig, ...]
     closing_layers: tuple[str, ...]
     pause_after_seconds: float | None = None
+    theme_id: str = "classic_ascii"
+    p1_bot_strategy: str | None = None
+    p2_bot_strategy: str | None = None
+    enable_telemetry: bool = False
+    enable_replay_check: bool = False
 
 
 @dataclass(frozen=True)
@@ -170,6 +175,11 @@ def _parse_scene(raw: dict[str, Any]) -> PromoSceneConfig:
         validation_cases=cases,
         closing_layers=tuple(str(line) for line in raw["closing_layers"]),
         pause_after_seconds=pause_after,
+        theme_id=str(raw.get("theme_id", "classic_ascii")),
+        p1_bot_strategy=None if raw.get("p1_bot_strategy") is None else str(raw["p1_bot_strategy"]),
+        p2_bot_strategy=None if raw.get("p2_bot_strategy") is None else str(raw["p2_bot_strategy"]),
+        enable_telemetry=bool(raw.get("enable_telemetry", False)),
+        enable_replay_check=bool(raw.get("enable_replay_check", False)),
     )
 
 
