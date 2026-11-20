@@ -1,8 +1,8 @@
 {
   "timings": {
-    "typewriter_char_delay_seconds": 0.012,
-    "frame_delay_seconds": 0.28,
-    "scene_pause_seconds": 0.75
+    "typewriter_char_delay_seconds": 0.024,
+    "frame_delay_seconds": 0.56,
+    "scene_pause_seconds": 1.5
   },
   "scenes": [
     {
