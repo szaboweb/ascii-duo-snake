@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ascii-duo-snake"
+version = "0.2.0"
+description = "Clean Architecture oktato ASCII/TUI Snake jatek Pythonban"
+requires-python = ">=3.11"
+
+[project.scripts]
+ascii-duo-snake = "ascii_duo_snake.game_cli_entrypoint:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
