@@ -1,8 +1,8 @@
 {
   "timings": {
-    "typewriter_char_delay_seconds": 0.024,
-    "frame_delay_seconds": 0.56,
-    "scene_pause_seconds": 1.5
+    "typewriter_char_delay_seconds": 0.04,
+    "frame_delay_seconds": 0.95,
+    "scene_pause_seconds": 4.5
   },
   "scenes": [
     {
@@ -66,19 +66,20 @@
         "RandomNumberProvider Protocol DI -> élesben RNG, tesztben determinisztikus Mock",
         "Head-swap védelem: egymással szemben helyet cserélő fejek -> biztonságos DRAW"
       ],
-      "room_width": 16,
+      "room_width": 18,
       "room_height": 8,
       "tick_rate_hz": 5.0,
-      "steps": 4,
+      "steps": 8,
       "scripted_inputs": [
-        { "tick": 1, "player_id": "P2", "direction": "down" }
+        { "tick": 1, "player_id": "P2", "direction": "down" },
+        { "tick": 4, "player_id": "P2", "direction": "left" }
       ],
       "initial_snakes": [
-        { "player_id": "P1", "x": 3, "y": 4, "direction": "right" },
-        { "player_id": "P2", "x": 12, "y": 2, "direction": "left" }
+        { "player_id": "P1", "x": 2, "y": 4, "direction": "right" },
+        { "player_id": "P2", "x": 15, "y": 2, "direction": "left" }
       ],
       "optional_fruit": {
-        "x": 4,
+        "x": 6,
         "y": 4,
         "fruit_type": "golden_melon"
       },
