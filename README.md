@@ -8,6 +8,28 @@ Ez a repó egy **kétszemélyes, terminálban futó (ASCII/TUI) Snake játék**,
 
 ---
 
+## Hogyan tanulj ebből a repóból? (Kezdő diák & Git útvonal)
+
+Ha tanultál már számítástechnikai alapfogalmakat, de még nem írtál önállóan programot, **ne a `main` ág 20+ fájljával kezdj** — előtte tölts el 1–2 órát 2–3 apró, 20 soros egyfájlos Python bemelegítővel (`input()`, `if`, `for`, `def`), majd indulj a `phase-1` ágról ebben a 4 lépésben (*Modify-before-Make*):
+
+1. **Nézd meg működés közben:** Futtasd le a `$env:PYTHONPATH="src"; python -m promo.run_promo_demo` és a `python main.py --demo` parancsokat, hogy lásd a felépítendő végeredményt.
+2. **Kezdd kicsiben (`phase-1`):** Lépj át az első előadás ágára (`git switch phase-1-alapok` vagy `git checkout phase-1`), olvass el egyszerre csak 2–3 rövid (20–50 soros) fájlt, és tippeld meg futtatás előtt, mit csinálnak.
+3. **Először módosíts, utána írj újat:** Először írj át JSON adatokat (`assets/room_manifest.json`, `promo/promo_storyboard_config.json`), utána adj hozzá 2 sor Pythonnal egy új gyümölcsöt (`BERRY`) vagy tábla-témát, végül írj 1 saját unit tesztet és egyszerű botot.
+4. **Haladj diffenként:** A `git diff phase-1 phase-2` .. `git diff phase-7 phase-8` parancsokkal mindig csak az adott óra új soraira figyelj.
+
+### Gyakorlati Git-munkafolyamat diákoknak
+
+```powershell
+git switch -c sajat-feladat   # Saját gyakorló branch létrehozása módosításokhoz
+git status                    # Megnézi, mely fájlok változtak
+git diff                      # Soronként megmutatja a saját átírásaidat
+git add <fajl>                # Módosítás előkészítése mentésre
+git commit -m "gyakorlas"     # Módosítás elmentése saját ágra
+git restore <fajl>            # Visszaállítja a fájlt az utolsó mentett állapotra
+```
+
+---
+
 ## 1. Architektúra: A 4 réteg és a Függőségi Szabály
 
 A program a **Clean Architecture (Tiszta Architektúra)** elvét követi. A legfontosabb szabály a **Dependency Rule (Függőségi Szabály)**: a nyilak **mindig befelé** mutatnak — a belső `domain/` réteg **semmit nem tud** arról, hogy terminálban fut-e a játék, szól-e a hangszóró, vagy JSON fájlból érkezik-e a pálya és a visszajátszás.
@@ -172,6 +194,8 @@ git checkout main
 A `promo/` csomag egy **0 külső függőséges, adatvezérelt (Data-Driven) és valódi játékmotort futtató terminál-bemutatót** tartalmaz (teljesen elkülönítve a `src/` rétegektől), amely **8 koreografált jelenetben** mutatja be mind a 8 előadás kulcsfogalmait:
 
 > **Fontos futtatási szabály:** A bemutatót **modulként (`python -m promo.run_promo_demo`)** kell indítani a projekt gyökérkönyvtárából (`PYTHONPATH="src"` mellett), mert így a Python közvetlenül megtalálja a `promo` csomagot és a `src/` modulokat mindenféle `sys.path.insert` kerülőút nélkül (ne közvetlenül a `promo/run_promo_demo.py` fájlnévvel indítsd). A `--mute` kapcsolóval a 8-bites hanghatások letilthatók.
+>
+> **Branchek közti eltérés:** A `phase-1`..`phase-3` ágak még nem tartalmazzák a `promo/` mappát, a `phase-4`..`phase-7` ágakon a 4 jelenetes alapverzió található, a teljes 8 jelenetes `python -m promo.run_promo_demo` csomag pedig a `phase-8` / `main` ágon él.
 
 ```powershell
 # Normál, animált bemutató (előadáshoz / kivetítőre):
