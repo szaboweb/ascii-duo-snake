@@ -13,10 +13,20 @@ Elkülönítés (`format_board_frame` vs. `render_board_frame`):
 from ..domain.fruit_catalog import FRUIT_CATALOG
 from ..domain.grid_point_value import GridPoint
 from ..domain.world_state import WorldState
+from .board_theme_catalog import DEFAULT_BOARD_THEME, BoardThemeSpec
 
 
 class AsciiBoardRenderer:
-    """A `WorldState` állapotot ASCII szöveges képkockává alakító megjelenítő."""
+    """A `WorldState` állapotot ASCII/Unicode szöveges képkockává alakító megjelenítő."""
+
+    def __init__(self, theme: BoardThemeSpec = DEFAULT_BOARD_THEME) -> None:
+        """Befecskendezhető vizuális téma (Data-Driven Theming), alapértelmezett ASCII-val."""
+        self._theme = theme
+
+    @property
+    def theme(self) -> BoardThemeSpec:
+        """GETTER: visszaadja az aktuális pályatémát."""
+        return self._theme
 
     def format_board_frame(self, world_state: WorldState) -> str:
         """Felépíti a teljes terminál-képkockát egyetlen stringként (0 mellékhatás)."""
@@ -44,19 +54,23 @@ class AsciiBoardRenderer:
                     or row_y == world_state.room_height - 1
                 )
                 if is_wall:
-                    row_characters.append("#")
+                    row_characters.append(self._theme.wall_glyph)
                 elif cell_position in player_one_cells:
                     row_characters.append(
-                        "1" if cell_position == world_state.player_one_snake.head else "o"
+                        self._theme.p1_head_glyph
+                        if cell_position == world_state.player_one_snake.head
+                        else self._theme.p1_body_glyph
                     )
                 elif cell_position in player_two_cells:
                     row_characters.append(
-                        "2" if cell_position == world_state.player_two_snake.head else "x"
+                        self._theme.p2_head_glyph
+                        if cell_position == world_state.player_two_snake.head
+                        else self._theme.p2_body_glyph
                     )
                 elif world_state.fruit_position == cell_position:
                     row_characters.append(fruit_symbol)
                 else:
-                    row_characters.append(" ")
+                    row_characters.append(self._theme.empty_glyph)
             frame_lines.append("".join(row_characters))
 
         frame_lines.append(f"Állapot: {world_state.status.value}  |  Kilépés: Q")
