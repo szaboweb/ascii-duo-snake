@@ -124,7 +124,8 @@
         "4. Presentation -> 2. Application -> 1. Domain (0 I/O)",
         "3. Infrastructure (JSON, RNG) -----> 1. Domain (Protocol)",
         "Data-Driven Promo: promo/promo_storyboard_config.json"
-      ]
+      ],
+      "pause_after_seconds": 7.0
     }
   ]
 }

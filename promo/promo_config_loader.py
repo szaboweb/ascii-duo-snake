@@ -83,6 +83,7 @@ class PromoSceneConfig:
     optional_fruit: OptionalFruitConfig | None
     validation_cases: tuple[ValidationCaseConfig, ...]
     closing_layers: tuple[str, ...]
+    pause_after_seconds: float | None = None
 
 
 @dataclass(frozen=True)
@@ -149,6 +150,10 @@ def _parse_scene(raw: dict[str, Any]) -> PromoSceneConfig:
         for item in raw["scripted_inputs"]
     )
     cases = tuple(ValidationCaseConfig(str(c["label"]), str(c["payload"])) for c in raw["validation_cases"])
+    raw_pause = raw.get("pause_after_seconds")
+    pause_after = None if raw_pause is None else float(raw_pause)
+    if pause_after is not None and pause_after < 0.0:
+        raise PromoConfigError("A 'pause_after_seconds' mező nem lehet negatív.")
     return PromoSceneConfig(
         id=str(raw["id"]),
         phase_badge=str(raw["phase_badge"]),
@@ -164,6 +169,7 @@ def _parse_scene(raw: dict[str, Any]) -> PromoSceneConfig:
         optional_fruit=_parse_optional_fruit(raw.get("optional_fruit")),
         validation_cases=cases,
         closing_layers=tuple(str(line) for line in raw["closing_layers"]),
+        pause_after_seconds=pause_after,
     )
 
 

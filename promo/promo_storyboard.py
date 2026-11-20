@@ -137,6 +137,13 @@ def _index_inputs_by_tick(inputs: tuple[ScriptedInputConfig, ...]) -> dict[int, 
     return grouped
 
 
+def _resolve_scene_pause(scene: PromoSceneConfig, timings: PromoTimingsConfig) -> float:
+    """Visszaadja a jelenet utáni szünetet (--fast módban 0.0, különben egyedi vagy globális)."""
+    if timings.scene_pause_seconds == 0.0:
+        return 0.0
+    return scene.pause_after_seconds if scene.pause_after_seconds is not None else timings.scene_pause_seconds
+
+
 def _run_validation_and_closing_scene(
     scene: PromoSceneConfig,
     timings: PromoTimingsConfig,
@@ -181,7 +188,7 @@ def _run_validation_and_closing_scene(
             style = ANSI_BOLD + ANSI_CYAN if idx == 0 else ANSI_GREEN
             print(colorize(f"  |  {line.ljust(width - 2)}|", style))
         print(colorize(border, ANSI_BOLD + ANSI_CYAN))
-    pause_seconds(timings.scene_pause_seconds)
+    pause_seconds(_resolve_scene_pause(scene, timings))
 
 
 def _run_simulation_scene(
@@ -197,7 +204,7 @@ def _run_simulation_scene(
         print_scene_banner(scene, timings.typewriter_char_delay_seconds)
         print(renderer.format_board_frame(world_state))
         print_highlights(scene.highlights)
-        pause_seconds(timings.scene_pause_seconds)
+        pause_seconds(_resolve_scene_pause(scene, timings))
         return
 
     controller = GameLoopController(world_state, PromoRandomProvider([0, 0]), InputRecorderService())
@@ -227,7 +234,7 @@ def _run_simulation_scene(
     if controller.current_state.status != GameStatus.RUNNING:
         print(colorize(f"  -> {controller.current_state.status.value}", ANSI_RED))
     print_highlights(scene.highlights)
-    pause_seconds(timings.scene_pause_seconds)
+    pause_seconds(_resolve_scene_pause(scene, timings))
 
 
 def run_promo_storyboard(
